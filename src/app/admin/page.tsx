@@ -1,39 +1,61 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import type { WeddingEvent } from "@/lib/types";
+"use client";
+
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import ThemeToggle from "@/components/ThemeToggle";
-import SignOutButton from "@/components/admin/SignOutButton";
 
-export const dynamic = "force-dynamic";
+function LoginInner() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get("next") || "/admin";
 
-export default async function AdminHome() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/admin/login");
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  // Événements que cet utilisateur administre.
-  const { data: memberships } = await supabase
-    .from("event_admins")
-    .select("event_id");
-  const ids = (memberships ?? []).map((m) => m.event_id);
+  // Étape 1 : envoyer le code à 6 chiffres par e-mail.
+  async function sendCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setBusy(true);
+    setError("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { shouldCreateUser: true },
+    });
+    setBusy(false);
+    if (error) setError(error.message);
+    else setStep("code");
+  }
 
-  let events: WeddingEvent[] = [];
-  if (ids.length > 0) {
-    const { data } = await supabase
-      .from("events")
-      .select(
-        "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, is_active, created_at"
-      )
-      .in("id", ids)
-      .order("created_at", { ascending: false });
-    events = (data as WeddingEvent[]) ?? [];
+  // Étape 2 : vérifier le code et ouvrir la session.
+  async function verify(e: React.FormEvent) {
+    e.preventDefault();
+    const token = code.replace(/\s/g, "");
+    if (token.length < 6) return;
+    setBusy(true);
+    setError("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token,
+      type: "email",
+    });
+    setBusy(false);
+    if (error) {
+      setError("Code incorrect ou expiré. Renvoie un nouveau code.");
+    } else {
+      router.push(next);
+      router.refresh();
+    }
   }
 
   return (
-    <div>
+    <div className="mx-auto mt-10 max-w-[420px]">
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="h-[9px] w-[9px] rounded-full" style={{ background: "var(--champ)" }} />
@@ -41,53 +63,79 @@ export default async function AdminHome() {
             Éclats · Admin
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <SignOutButton />
-        </div>
+        <ThemeToggle />
       </div>
 
-      <h1 className="display text-[34px] leading-tight">Vos mariages</h1>
-      <p className="mt-1 text-[14px]" style={{ color: "var(--ink-soft)" }}>
-        Connecté en tant que {user.email}
-      </p>
+      <h1 className="display text-[32px] leading-tight">Espace organisateurs</h1>
 
-      {events.length === 0 ? (
-        <div className="card mt-6 p-6">
-          <p className="font-semibold">Aucun mariage lié à ce compte pour l&apos;instant.</p>
-          <p className="mt-2 text-[14px]" style={{ color: "var(--ink-soft)" }}>
-            Relie ton compte à un mariage depuis Supabase (SQL Editor) — voir la
-            section « Créer ton accès admin » du README. Puis recharge cette page.
+      {step === "email" ? (
+        <>
+          <p className="mt-2 text-[15px]" style={{ color: "var(--ink-soft)" }}>
+            Entre ton e-mail : tu recevras un <b>code à 6 chiffres</b> à recopier ici.
           </p>
-        </div>
+          <form onSubmit={sendCode} className="mt-6 flex flex-col gap-3">
+            <input
+              type="email"
+              required
+              autoFocus
+              placeholder="ton.email@exemple.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="field-input"
+            />
+            <button className="btn btn-primary" disabled={busy}>
+              {busy ? "Envoi…" : "Recevoir mon code"}
+            </button>
+            {error && (
+              <p className="text-[13px]" style={{ color: "#c0522d" }}>
+                {error}
+              </p>
+            )}
+          </form>
+        </>
       ) : (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {events.map((e) => (
-            <Link
-              key={e.id}
-              href={`/admin/${e.slug}`}
-              className="card block p-5 transition hover:shadow-soft"
-            >
-              <div className="flex items-center justify-between">
-                <span className="eyebrow">{e.is_active ? "Ouvert" : "Fermé"}</span>
-                <span
-                  className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                  style={{
-                    background: e.game_active ? "var(--sage-tint)" : "var(--surface)",
-                    color: e.game_active ? "var(--sage)" : "var(--ink-faint)",
-                  }}
-                >
-                  {e.game_active ? "🎲 Jeu actif" : "Jeu en pause"}
-                </span>
-              </div>
-              <div className="display mt-3 text-[24px]">{e.couple_names}</div>
-              <div className="mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
-                /e/{e.slug}
-              </div>
-            </Link>
-          ))}
-        </div>
+        <>
+          <p className="mt-2 text-[15px]" style={{ color: "var(--ink-soft)" }}>
+            Un code a été envoyé à <b>{email}</b>. Saisis-le ci-dessous (regarde aussi tes spams).
+          </p>
+          <form onSubmit={verify} className="mt-6 flex flex-col gap-3">
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              placeholder="123456"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+              className="field-input text-center"
+              style={{ letterSpacing: "0.4em", fontSize: "24px", fontWeight: 600 }}
+            />
+            <button className="btn btn-primary" disabled={busy || code.length < 6}>
+              {busy ? "Vérification…" : "Me connecter"}
+            </button>
+            {error && (
+              <p className="text-[13px]" style={{ color: "#c0522d" }}>
+                {error}
+              </p>
+            )}
+          </form>
+          <div className="mt-4 flex items-center justify-between text-[13px]">
+            <button onClick={() => { setStep("email"); setCode(""); setError(""); }} style={{ color: "var(--ink-soft)" }}>
+              ‹ Changer d&apos;e-mail
+            </button>
+            <button onClick={(e) => sendCode(e as unknown as React.FormEvent)} style={{ color: "var(--sage)" }}>
+              Renvoyer un code
+            </button>
+          </div>
+        </>
       )}
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginInner />
+    </Suspense>
   );
 }
