@@ -1,34 +1,36 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { SITE_URL } from "@/lib/env";
 import ThemeToggle from "@/components/ThemeToggle";
 
 function LoginInner() {
+  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/admin";
+
   const [email, setEmail] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [msg, setMsg] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim()) return;
-    setState("sending");
+    if (!email.trim() || !password) return;
+    setBusy(true);
+    setError("");
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
-      options: {
-        emailRedirectTo: `${SITE_URL}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
+      password,
     });
+    setBusy(false);
     if (error) {
-      setState("error");
-      setMsg(error.message);
+      setError("E-mail ou mot de passe incorrect.");
     } else {
-      setState("sent");
+      router.push(next);
+      router.refresh();
     }
   }
 
@@ -46,36 +48,43 @@ function LoginInner() {
 
       <h1 className="display text-[32px] leading-tight">Espace organisateurs</h1>
       <p className="mt-2 text-[15px]" style={{ color: "var(--ink-soft)" }}>
-        Entre ton e-mail : tu recevras un lien de connexion sécurisé, sans mot de passe.
+        Connecte-toi avec l&apos;e-mail et le mot de passe créés dans Supabase.
       </p>
 
-      {state === "sent" ? (
-        <div className="card mt-6 p-5 text-[15px]">
-          <p className="font-semibold">Vérifie ta boîte mail ✉️</p>
-          <p className="mt-1" style={{ color: "var(--ink-soft)" }}>
-            Un lien de connexion a été envoyé à <b>{email}</b>. Ouvre-le sur cet appareil.
+      <form onSubmit={submit} className="mt-6 flex flex-col gap-3">
+        <input
+          type="email"
+          required
+          autoFocus
+          autoComplete="email"
+          placeholder="ton.email@exemple.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="field-input"
+        />
+        <input
+          type="password"
+          required
+          autoComplete="current-password"
+          placeholder="Mot de passe"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="field-input"
+        />
+        <button className="btn btn-primary" disabled={busy}>
+          {busy ? "Connexion…" : "Me connecter"}
+        </button>
+        {error && (
+          <p className="text-[13px]" style={{ color: "#c0522d" }}>
+            {error}
           </p>
-        </div>
-      ) : (
-        <form onSubmit={submit} className="mt-6 flex flex-col gap-3">
-          <input
-            type="email"
-            required
-            placeholder="ton.email@exemple.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="field-input"
-          />
-          <button className="btn btn-primary" disabled={state === "sending"}>
-            {state === "sending" ? "Envoi…" : "Recevoir mon lien de connexion"}
-          </button>
-          {state === "error" && (
-            <p className="text-[13px]" style={{ color: "#c0522d" }}>
-              {msg}
-            </p>
-          )}
-        </form>
-      )}
+        )}
+      </form>
+
+      <p className="mt-5 text-[12.5px]" style={{ color: "var(--ink-faint)" }}>
+        Les comptes organisateurs se créent dans Supabase → Authentication → Users
+        → « Add user » (avec « Auto Confirm User »).
+      </p>
     </div>
   );
 }
