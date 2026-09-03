@@ -1,13 +1,13 @@
-import { type NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
-
-export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+import { NextResponse, type NextRequest } from "next/server";
+ 
+// Volontairement neutre : l'espace admin gère lui-même la connexion côté client
+// (aucune redirection serveur), ce qui évite tout problème de session/redirection.
+export function middleware(_request: NextRequest) {
+  return NextResponse.next();
 }
-
+ 
 export const config = {
-  matcher: [
-    // Tout sauf les fichiers statiques et les images.
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  // Ne s'applique à rien d'utile — le middleware est neutre.
+  matcher: ["/_middleware_noop_"],
 };
+ 
