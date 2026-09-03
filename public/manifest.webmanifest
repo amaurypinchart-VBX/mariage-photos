@@ -1,0 +1,10 @@
+{
+  "name": "Éclats — Photos du mariage",
+  "short_name": "Éclats",
+  "description": "Partagez vos photos du mariage et jouez à la roulette photo.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EFEFE9",
+  "theme_color": "#4F6152",
+  "icons": []
+}

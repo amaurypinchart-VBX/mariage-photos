@@ -1,0 +1,473 @@
+<title>Éclats</title>
+<meta name="description" content="Aperçu de la plateforme invités : partage de photos et roulette photo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<style>
+  :root{
+    /* light — porcelaine chaude, biais vert */
+    --bg:#EFEFE9;
+    --surface:#F7F7F2;
+    --surface-2:#FBFBF7;
+    --ink:#232B25;
+    --ink-soft:#5A6459;
+    --ink-faint:#8A917F;
+    --line:#DEDED4;
+    --line-strong:#CFCFC2;
+    --sage:#4F6152;
+    --sage-strong:#3C4C40;
+    --sage-tint:#E4EAE1;
+    --champ:#B08748;
+    --champ-tint:#F0E6D4;
+    --white-on-accent:#F7F7F2;
+    --shadow:0 1px 2px rgba(35,43,37,.05), 0 8px 24px -12px rgba(35,43,37,.18);
+    --shadow-lift:0 2px 4px rgba(35,43,37,.06), 0 20px 40px -16px rgba(35,43,37,.28);
+    --radius:20px;
+    --radius-sm:13px;
+    --ok:#4F6152;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0F120E;
+      --surface:#171B15;
+      --surface-2:#1E231B;
+      --ink:#ECEBE1;
+      --ink-soft:#B4BAAC;
+      --ink-faint:#7E8577;
+      --line:#2A3026;
+      --line-strong:#38402F;
+      --sage:#9DB39B;
+      --sage-strong:#B6C8B4;
+      --sage-tint:#212A1F;
+      --champ:#D6AC74;
+      --champ-tint:#2C2515;
+      --white-on-accent:#141810;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 30px -14px rgba(0,0,0,.7);
+      --shadow-lift:0 2px 6px rgba(0,0,0,.5), 0 26px 50px -18px rgba(0,0,0,.8);
+      --ok:#9DB39B;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0F120E;
+    --surface:#171B15;
+    --surface-2:#1E231B;
+    --ink:#ECEBE1;
+    --ink-soft:#B4BAAC;
+    --ink-faint:#7E8577;
+    --line:#2A3026;
+    --line-strong:#38402F;
+    --sage:#9DB39B;
+    --sage-strong:#B6C8B4;
+    --sage-tint:#212A1F;
+    --champ:#D6AC74;
+    --champ-tint:#2C2515;
+    --white-on-accent:#141810;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 30px -14px rgba(0,0,0,.7);
+    --shadow-lift:0 2px 6px rgba(0,0,0,.5), 0 26px 50px -18px rgba(0,0,0,.8);
+    --ok:#9DB39B;
+  }
+
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:"Figtree",system-ui,-apple-system,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased;margin:0}
+  .display{font-family:"Marcellus","Times New Roman",serif;font-weight:400;letter-spacing:.01em}
+  .eyebrow{font-family:"Figtree",sans-serif;text-transform:uppercase;letter-spacing:.28em;font-size:11px;font-weight:600;color:var(--ink-faint)}
+
+  /* ---- desktop staging: phone frame ---- */
+  .stage{min-height:100%;display:flex;flex-direction:column;align-items:center;gap:22px;padding:34px 16px 48px}
+  .stage-note{max-width:360px;text-align:center;color:var(--ink-soft);font-size:13.5px}
+  .stage-note strong{color:var(--ink);font-weight:600}
+  .phone{
+    width:100%;max-width:412px;background:var(--surface);border-radius:40px;
+    box-shadow:var(--shadow-lift);overflow:hidden;position:relative;
+    border:1px solid var(--line);
+  }
+  @media (min-width:520px){ .phone{border:10px solid #0f120e33;border-radius:46px} :root[data-theme="dark"] .phone,:root:not([data-theme="light"]) .phone{} }
+  .screen{display:none;flex-direction:column;min-height:748px}
+  .screen.active{display:flex}
+
+  /* ---- top bar ---- */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 6px}
+  .brand{display:flex;align-items:center;gap:8px}
+  .brand-dot{width:9px;height:9px;border-radius:50%;background:var(--champ)}
+  .brand-name{font-family:"Figtree";text-transform:uppercase;letter-spacing:.34em;font-size:11px;font-weight:700;color:var(--ink-soft)}
+  .iconbtn{appearance:none;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink-soft);width:34px;height:34px;border-radius:50%;font-size:15px;display:grid;place-items:center;cursor:pointer;transition:.18s}
+  .iconbtn:hover{color:var(--ink);border-color:var(--ink-faint)}
+  .backbtn{appearance:none;border:none;background:none;color:var(--ink-soft);font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;cursor:pointer;padding:6px 0}
+  .backbtn:hover{color:var(--ink)}
+
+  /* ---- welcome ---- */
+  .welcome-body{padding:8px 26px 26px;display:flex;flex-direction:column;flex:1}
+  .cover{
+    position:relative;border-radius:var(--radius);overflow:hidden;height:236px;margin-top:8px;
+    background:
+      radial-gradient(120% 90% at 20% 0%, var(--champ-tint) 0%, transparent 55%),
+      linear-gradient(160deg, var(--sage-tint) 0%, var(--surface-2) 60%);
+    border:1px solid var(--line);display:flex;flex-direction:column;justify-content:flex-end;
+  }
+  .cover-arch{position:absolute;inset:18px 18px auto 18px;height:200px;border:1px solid var(--line-strong);border-bottom:none;border-radius:120px 120px 0 0;opacity:.65}
+  .cover-inner{position:relative;padding:22px 22px 24px;text-align:center}
+  .cover .date{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+  .cover .names{font-size:44px;line-height:1.02;margin:8px 0 2px;color:var(--ink);text-wrap:balance}
+  .cover .amp{color:var(--champ);font-style:italic}
+  .cover .place{font-size:12.5px;color:var(--ink-soft);margin-top:6px}
+  .welcome-lead{margin:22px 2px 4px;color:var(--ink-soft);font-size:15px;text-align:center;text-wrap:balance}
+  .field{margin-top:18px}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin:0 0 7px 3px;letter-spacing:.02em}
+  .field input{width:100%;padding:15px 16px;border-radius:var(--radius-sm);border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink);font-size:16px;font-family:inherit;transition:.18s}
+  .field input:focus{outline:none;border-color:var(--sage);box-shadow:0 0 0 4px var(--sage-tint)}
+  .field input::placeholder{color:var(--ink-faint)}
+  .actions{margin-top:18px;display:flex;flex-direction:column;gap:11px}
+  .btn{appearance:none;cursor:pointer;font-family:inherit;font-size:16px;font-weight:600;border-radius:var(--radius-sm);padding:16px 18px;display:flex;align-items:center;justify-content:center;gap:10px;transition:transform .12s, box-shadow .18s, background .18s, border-color .18s;border:1px solid transparent}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--sage);color:var(--white-on-accent);box-shadow:var(--shadow)}
+  .btn-primary:hover{background:var(--sage-strong)}
+  .btn-ghost{background:var(--surface-2);color:var(--ink);border-color:var(--line-strong)}
+  .btn-ghost:hover{border-color:var(--champ);color:var(--ink)}
+  .btn .ic{font-size:18px}
+  .reassure{margin-top:auto;padding-top:20px;text-align:center;color:var(--ink-faint);font-size:12px;display:flex;align-items:center;justify-content:center;gap:7px}
+
+  /* ---- section shell ---- */
+  .sec{padding:6px 22px 24px;display:flex;flex-direction:column;flex:1}
+  .sec-head{margin:6px 0 4px}
+  .sec-head .eyebrow{margin-bottom:9px}
+  .sec-title{font-size:30px;line-height:1.06;color:var(--ink)}
+  .sec-sub{color:var(--ink-soft);font-size:14px;margin-top:8px;text-wrap:balance}
+
+  /* ---- upload ---- */
+  .dropzone{margin-top:18px;border:1.5px dashed var(--line-strong);border-radius:var(--radius);background:var(--surface-2);padding:30px 20px;text-align:center;cursor:pointer;transition:.18s}
+  .dropzone:hover{border-color:var(--sage);background:var(--sage-tint)}
+  .dz-ic{width:52px;height:52px;border-radius:50%;background:var(--sage-tint);color:var(--sage);display:grid;place-items:center;margin:0 auto 12px;font-size:24px}
+  .dz-t{font-weight:600;font-size:15.5px;color:var(--ink)}
+  .dz-s{font-size:13px;color:var(--ink-soft);margin-top:4px}
+  .dz-btns{display:flex;gap:9px;margin-top:15px;justify-content:center}
+  .chip{font-size:13px;font-weight:600;padding:9px 14px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-soft);display:inline-flex;gap:6px;align-items:center}
+  .grid{margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .thumb{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line)}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb .prog{position:absolute;inset:auto 0 0 0;height:100%;background:linear-gradient(to top, rgba(15,18,14,.55), transparent 60%);display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px}
+  .thumb .bar{position:absolute;left:6px;right:6px;bottom:6px;height:4px;border-radius:99px;background:rgba(255,255,255,.35);overflow:hidden}
+  .thumb .bar i{display:block;height:100%;width:0;background:var(--champ);transition:width .3s}
+  .thumb .done{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:var(--sage);color:var(--white-on-accent);display:grid;place-items:center;font-size:12px;opacity:0;transform:scale(.6);transition:.25s}
+  .thumb.is-done .done{opacity:1;transform:scale(1)}
+  .thumb.is-done .prog{opacity:0}
+  .send-row{margin-top:auto;padding-top:18px}
+  .count{font-size:13px;color:var(--ink-soft);text-align:center;margin-bottom:10px}
+  .count b{color:var(--ink)}
+
+  /* ---- game ---- */
+  .roulette{margin-top:16px;background:
+      radial-gradient(130% 80% at 50% -10%, var(--champ-tint) 0%, transparent 60%),
+      var(--surface-2);
+    border:1px solid var(--line);border-radius:var(--radius);padding:26px 22px;text-align:center;overflow:hidden;position:relative}
+  .roulette .tag{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--champ);font-weight:700}
+  .reel{min-height:104px;margin:14px 0 4px;display:flex;align-items:center;justify-content:center;position:relative}
+  .reel .card-txt{font-family:"Marcellus",serif;font-size:19px;line-height:1.25;color:var(--ink);text-wrap:balance;transition:opacity .1s}
+  .reel.spinning .card-txt{opacity:.35}
+  .defi-num{position:absolute;top:0;left:50%;transform:translateX(-50%);font-size:11px;color:var(--ink-faint);letter-spacing:.2em;text-transform:uppercase}
+  .spinbtn{margin-top:10px;background:var(--champ);color:var(--white-on-accent);border:none;font-family:inherit;font-size:16px;font-weight:700;padding:15px 24px;border-radius:999px;cursor:pointer;box-shadow:var(--shadow);display:inline-flex;gap:9px;align-items:center;transition:.15s}
+  .spinbtn:hover{filter:brightness(1.05)}
+  .spinbtn:active{transform:translateY(1px)}
+  .accept{margin-top:11px;width:100%;background:var(--sage);color:var(--white-on-accent);border:none;font-family:inherit;font-size:15.5px;font-weight:600;padding:14px;border-radius:var(--radius-sm);cursor:pointer;display:none;align-items:center;justify-content:center;gap:9px}
+  .accept.show{display:flex}
+  .prog-line{margin:20px 0 6px;display:flex;align-items:center;justify-content:space-between}
+  .prog-line .eyebrow{margin:0}
+  .prog-line .val{font-size:13px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .track{height:7px;border-radius:99px;background:var(--line);overflow:hidden}
+  .track i{display:block;height:100%;width:0;background:var(--sage);border-radius:99px;transition:width .5s cubic-bezier(.2,.7,.2,1)}
+  .defi-list{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+  .defi{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:13px;background:var(--surface-2);border:1px solid var(--line);transition:.18s}
+  .defi .mk{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line-strong);flex:none;display:grid;place-items:center;font-size:12px;color:transparent}
+  .defi.done{background:var(--sage-tint);border-color:var(--sage)}
+  .defi.done .mk{background:var(--sage);border-color:var(--sage);color:var(--white-on-accent)}
+  .defi.done .dtxt{color:var(--ink-soft)}
+  .dtxt{font-size:14px;color:var(--ink);font-weight:500}
+
+  /* ---- toast + confetti ---- */
+  .toast{position:absolute;left:16px;right:16px;bottom:18px;background:var(--ink);color:var(--bg);padding:14px 16px;border-radius:14px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow-lift);transform:translateY(140%);transition:transform .35s cubic-bezier(.2,.8,.2,1);z-index:6}
+  .toast.show{transform:translateY(0)}
+  .toast .tk{width:22px;height:22px;border-radius:50%;background:var(--sage);color:var(--white-on-accent);display:grid;place-items:center;font-size:12px;flex:none}
+  .demo-flag{margin:0 22px;background:var(--champ-tint);color:var(--champ);border:1px solid transparent;font-size:11.5px;font-weight:600;padding:8px 12px;border-radius:10px;text-align:center;letter-spacing:.01em}
+  :root[data-theme="dark"] .demo-flag,:root:not([data-theme="light"]) .demo-flag{color:var(--champ)}
+  canvas.confetti{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+
+<div class="stage">
+  <p class="stage-note"><strong>Aperçu de la plateforme invités.</strong> Clique dans le téléphone comme le feraient tes invités après avoir scanné le QR code. Bascule le thème avec ☾.</p>
+
+  <div class="phone" id="phone">
+
+    <!-- ======= ÉCRAN ACCUEIL ======= -->
+    <section class="screen active" data-screen="welcome">
+      <div class="topbar">
+        <div class="brand"><span class="brand-dot"></span><span class="brand-name">Éclats</span></div>
+        <button class="iconbtn" id="theme-toggle" aria-label="Changer de thème">☾</button>
+      </div>
+      <div class="welcome-body">
+        <div class="cover">
+          <div class="cover-arch"></div>
+          <div class="cover-inner">
+            <div class="date">Samedi 12 Juin 2027</div>
+            <div class="names display">Amaury <span class="amp">&amp;</span> Charlie</div>
+            <div class="place">Domaine du Vieux Chêne · Belgique</div>
+          </div>
+        </div>
+        <p class="welcome-lead">Vous avez capturé un moment ? Partagez-le avec nous — chaque photo compte pour raconter notre journée.</p>
+        <div class="field">
+          <label for="firstname">Ton prénom</label>
+          <input id="firstname" type="text" placeholder="Ex. Camille" autocomplete="given-name">
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" data-go="upload"><span class="ic">✦</span> Partager mes photos</button>
+          <button class="btn btn-ghost" data-go="game"><span class="ic">✲</span> La roulette photo</button>
+        </div>
+        <div class="reassure"><span>♥</span> Tes photos ne sont visibles que par les mariés</div>
+      </div>
+    </section>
+
+    <!-- ======= ÉCRAN UPLOAD ======= -->
+    <section class="screen" data-screen="upload">
+      <div class="topbar">
+        <button class="backbtn" data-go="welcome">‹ Retour</button>
+        <div class="brand"><span class="brand-dot"></span><span class="brand-name">Éclats</span></div>
+      </div>
+      <div class="demo-flag">Aperçu — les photos restent sur ton téléphone, rien n'est encore envoyé.</div>
+      <div class="sec">
+        <div class="sec-head">
+          <div class="eyebrow">Merci <span id="hi-name">·</span></div>
+          <h1 class="sec-title display">Tes photos</h1>
+          <p class="sec-sub">Ajoute autant de photos et de vidéos que tu veux. Elles arrivent directement dans l'album des mariés.</p>
+        </div>
+        <label class="dropzone" for="filepick">
+          <div class="dz-ic">＋</div>
+          <div class="dz-t">Ajouter des photos</div>
+          <div class="dz-s">Prends une photo ou choisis dans ta galerie</div>
+          <div class="dz-btns">
+            <span class="chip">📷 Appareil photo</span>
+            <span class="chip">🖼️ Galerie</span>
+          </div>
+        </label>
+        <input id="filepick" class="visually-hidden" type="file" accept="image/*,video/*" multiple>
+        <div class="grid" id="thumbs"></div>
+        <div class="send-row">
+          <div class="count" id="count">Aucune photo sélectionnée</div>
+          <button class="btn btn-primary" id="send" disabled style="opacity:.5"><span class="ic">↑</span> Envoyer</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= ÉCRAN JEU ======= -->
+    <section class="screen" data-screen="game">
+      <div class="topbar">
+        <button class="backbtn" data-go="welcome">‹ Retour</button>
+        <div class="brand"><span class="brand-dot"></span><span class="brand-name">Éclats</span></div>
+      </div>
+      <div class="sec">
+        <div class="sec-head">
+          <div class="eyebrow">Le jeu du mariage</div>
+          <h1 class="sec-title display">La roulette photo</h1>
+          <p class="sec-sub">Tourne la roue, décroche un défi, prends la photo. À toi de retrouver les bonnes personnes !</p>
+        </div>
+        <div class="roulette">
+          <canvas class="confetti" id="confetti"></canvas>
+          <div class="tag">Ton défi</div>
+          <div class="reel" id="reel"><div class="card-txt" id="reel-txt">Appuie sur « Tourner »</div></div>
+          <button class="spinbtn" id="spin">🎲 Tourner la roue</button>
+          <button class="accept" id="accept"><span>📷</span> Relever ce défi</button>
+        </div>
+        <div class="prog-line">
+          <div class="eyebrow">Défis relevés</div>
+          <div class="val" id="prog-val">0 / 30</div>
+        </div>
+        <div class="track"><i id="track-fill"></i></div>
+        <div class="defi-list" id="defi-list"></div>
+      </div>
+    </section>
+
+    <div class="toast" id="toast"><span class="tk">✓</span><span id="toast-txt">Envoyé !</span></div>
+  </div>
+
+  <p class="stage-note" style="font-size:12.5px;color:var(--ink-faint)">Design « Éclats » · réutilisable pour d'autres mariages · les couleurs, noms et défis seront paramétrables par événement.</p>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  // theme toggle
+  document.getElementById('theme-toggle').addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme');
+    var isDark = cur==='dark' || (!cur && matchMedia('(prefers-color-scheme:dark)').matches);
+    root.setAttribute('data-theme', isDark?'light':'dark');
+  });
+
+  // screen nav
+  var name='';
+  function go(id){
+    document.querySelectorAll('.screen').forEach(function(s){s.classList.toggle('active',s.dataset.screen===id);});
+    if(id==='upload'){ document.getElementById('hi-name').textContent = name?name:'à toi'; }
+    var ph=document.getElementById('phone'); ph.scrollTop=0;
+  }
+  document.querySelectorAll('[data-go]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var target=b.dataset.go;
+      if((target==='upload'||target==='game')){
+        var f=document.getElementById('firstname');
+        name=f.value.trim();
+        if(!name){ f.focus(); f.style.borderColor='var(--champ)'; setTimeout(function(){f.style.borderColor='';},1200); return; }
+      }
+      go(target);
+    });
+  });
+
+  // toast
+  var toast=document.getElementById('toast');
+  function showToast(txt){ document.getElementById('toast-txt').textContent=txt; toast.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(function(){toast.classList.remove('show');},2600); }
+
+  // ---- upload (simulated) ----
+  var pick=document.getElementById('filepick'), thumbs=document.getElementById('thumbs'),
+      countEl=document.getElementById('count'), sendBtn=document.getElementById('send');
+  var items=[];
+  pick.addEventListener('change',function(e){
+    Array.prototype.forEach.call(e.target.files,function(file){
+      var url=URL.createObjectURL(file);
+      var d=document.createElement('div'); d.className='thumb';
+      d.innerHTML='<img alt="" src="'+url+'"><div class="prog"><div class="bar"><i></i></div></div><div class="done">✓</div>';
+      thumbs.appendChild(d); items.push(d);
+    });
+    // demo fallback if no real files chosen
+    updateCount();
+  });
+  // clicking the dropzone with no camera on desktop still adds demo tiles
+  document.querySelector('.dropzone').addEventListener('click',function(){
+    setTimeout(function(){
+      if(pick.files.length===0 && items.length<3){
+        for(var k=0;k<3;k++){
+          var d=document.createElement('div'); d.className='thumb demo';
+          var hue=[ 'linear-gradient(135deg,#cdd7c7,#efe6d2)','linear-gradient(135deg,#e7d9c2,#d3ddcf)','linear-gradient(135deg,#dfe6da,#f2e7d0)' ][k%3];
+          d.innerHTML='<div style="width:100%;height:100%;background:'+hue+'"></div><div class="prog"><div class="bar"><i></i></div></div><div class="done">✓</div>';
+          thumbs.appendChild(d); items.push(d);
+        }
+        updateCount();
+      }
+    },300);
+  });
+  function updateCount(){
+    if(items.length){ countEl.innerHTML='<b>'+items.length+'</b> photo'+(items.length>1?'s':'')+' prête'+(items.length>1?'s':'')+' à envoyer'; sendBtn.disabled=false; sendBtn.style.opacity=1; }
+    else { countEl.textContent='Aucune photo sélectionnée'; sendBtn.disabled=true; sendBtn.style.opacity=.5; }
+  }
+  sendBtn.addEventListener('click',function(){
+    if(!items.length) return;
+    sendBtn.disabled=true; sendBtn.style.opacity=.6; sendBtn.innerHTML='<span class="ic">…</span> Envoi en cours';
+    var done=0;
+    items.forEach(function(d,i){
+      var bar=d.querySelector('.bar i');
+      setTimeout(function(){
+        bar.style.width='100%';
+        setTimeout(function(){ d.classList.add('is-done'); done++; if(done===items.length){ sendBtn.innerHTML='<span class="ic">✓</span> Envoyé — merci !'; showToast(items.length+' souvenir'+(items.length>1?'s':'')+' bien reçu'+(items.length>1?'s':'')+' !'); } },420);
+      }, 200+i*260);
+    });
+  });
+
+  // ---- game (30 défis, le dernier se débloque après 10) ----
+  var DEFIS=[
+    {t:"📸 Une photo avec quelqu'un que tu rencontres pour la première fois aujourd'hui.",thr:0},
+    {t:"🕺 Une photo avec quelqu'un en pleine danse complètement ridicule.",thr:0},
+    {t:"👴 Une photo avec la personne la plus âgée de la soirée.",thr:0},
+    {t:"👶 Une photo avec l'un des plus jeunes invités.",thr:0},
+    {t:"😎 Une photo de groupe façon « pochette d'album ».",thr:0},
+    {t:"❤️ Une photo avec un couple ensemble depuis plus de 10 ans.",thr:0},
+    {t:"🥂 Une photo où au moins 5 personnes trinquent en même temps.",thr:0},
+    {t:"🤪 Une photo avec trois personnes faisant leur plus belle grimace.",thr:0},
+    {t:"💃 Une photo avec quelqu'un dans une pose de mannequin.",thr:0},
+    {t:"🦸 Une photo de groupe façon équipe de super-héros.",thr:0},
+    {t:"👔 Une photo avec quelqu'un qui porte un nœud papillon ou une cravate.",thr:0},
+    {t:"👗 Une photo avec trois personnes portant la même couleur.",thr:0},
+    {t:"🍰 Une photo avec quelque chose à manger… mais présentée comme une pub de luxe.",thr:0},
+    {t:"🌸 Une photo avec une fleur récupérée dans la décoration.",thr:0},
+    {t:"💍 Une photo où quelqu'un « demande en mariage » quelqu'un d'autre.",thr:0},
+    {t:"😂 Une photo avec quelqu'un en train de rire pour de vrai.",thr:0},
+    {t:"🪑 Une photo de cinq personnes essayant de tenir autour d'une seule chaise.",thr:0},
+    {t:"🧘 Une photo dans une position de yoga complètement improvisée.",thr:0},
+    {t:"🚂 Une photo d'une mini chenille de danse avec au moins 6 personnes.",thr:0},
+    {t:"🤵 Une photo avec le marié… mais tout le monde prend sa pose.",thr:0},
+    {t:"👰 Une photo avec la mariée… façon couverture de magazine.",thr:0},
+    {t:"🫶 Une photo où au moins 8 personnes forment un cœur avec leurs mains.",thr:0},
+    {t:"🥸 Une photo avec un accessoire détourné de son utilisation normale.",thr:0},
+    {t:"🎬 Une photo reproduisant une scène de film connue.",thr:0},
+    {t:"🗿 Une photo où tout le monde reste sérieux sauf une personne.",thr:0},
+    {t:"🤸 Une photo où personne n'a les deux pieds au sol.",thr:0},
+    {t:"🔄 Une photo avec quelqu'un qui porte quelque chose à l'envers.",thr:0},
+    {t:"👯 Une photo avec deux personnes habillées presque pareil.",thr:0},
+    {t:"🌙 Une photo tard dans la soirée avec les derniers survivants de la piste.",thr:0},
+    {t:"🏆 Le défi ultime : une personne de chaque groupe sur une seule photo (famille de Charlie, famille d'Amaury, amis de Charlie, amis d'Amaury, et quelqu'un qui connaît les deux).",thr:10}
+  ];
+  var reel=document.getElementById('reel'), reelTxt=document.getElementById('reel-txt'),
+      spin=document.getElementById('spin'), accept=document.getElementById('accept'),
+      list=document.getElementById('defi-list'), progVal=document.getElementById('prog-val'),
+      trackFill=document.getElementById('track-fill');
+  var doneSet={}, current=-1;
+  function regularDone(){ var n=0; DEFIS.forEach(function(d,i){ if(d.thr===0 && doneSet[i]) n++; }); return n; }
+  function unlocked(i){ return regularDone()>=DEFIS[i].thr; }
+  DEFIS.forEach(function(d,i){
+    var el=document.createElement('div'); el.className='defi'; el.dataset.i=i;
+    el.innerHTML='<span class="mk">✓</span><span class="dtxt">'+d.t+'</span>';
+    list.appendChild(el);
+  });
+  function refreshProg(){
+    var n=Object.keys(doneSet).length;
+    progVal.textContent=n+' / '+DEFIS.length;
+    trackFill.style.width=(n/DEFIS.length*100)+'%';
+    DEFIS.forEach(function(d,i){
+      var el=list.querySelector('.defi[data-i="'+i+'"]'); if(!el) return;
+      var ok=unlocked(i);
+      el.style.opacity = (ok||doneSet[i]) ? '' : '0.5';
+      el.querySelector('.mk').textContent = doneSet[i] ? '✓' : (ok ? '' : '🔒');
+    });
+  }
+  refreshProg();
+  spin.addEventListener('click',function(){
+    accept.classList.remove('show');
+    reel.classList.add('spinning');
+    var pool=[]; DEFIS.forEach(function(d,i){ if(unlocked(i) && !doneSet[i]) pool.push(i); });
+    if(pool.length===0){ DEFIS.forEach(function(d,i){ if(unlocked(i)) pool.push(i); }); }
+    var ticks=0, max=16+Math.floor(Math.random()*6);
+    var iv=setInterval(function(){
+      current=pool[Math.floor(Math.random()*pool.length)];
+      reelTxt.textContent=DEFIS[current].t;
+      ticks++;
+      if(ticks>=max){
+        clearInterval(iv); reel.classList.remove('spinning');
+        accept.classList.add('show');
+      }
+    },70);
+  });
+  accept.addEventListener('click',function(){
+    if(current<0) return;
+    if(!doneSet[current]){
+      doneSet[current]=true;
+      var el=list.querySelector('.defi[data-i="'+current+'"]'); if(el) el.classList.add('done');
+      var justUnlockedBonus = regularDone()===10;
+      refreshProg(); burst();
+      showToast(justUnlockedBonus ? "🏆 Défi ultime débloqué !" : "Défi relevé ! Prends la photo 📷");
+    } else { showToast("Déjà relevé — retente un autre défi !"); }
+    accept.classList.remove('show');
+  });
+
+  // confetti
+  var cv=document.getElementById('confetti'), ctx=cv.getContext('2d'), parts=[], raf=null;
+  function burst(){
+    if(matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+    var r=cv.getBoundingClientRect(); cv.width=r.width; cv.height=r.height;
+    var cols=['#B08748','#4F6152','#D6AC74','#9DB39B','#EFE6D4'];
+    for(var i=0;i<70;i++){ parts.push({x:cv.width/2,y:cv.height*0.35,vx:(Math.random()-0.5)*7,vy:Math.random()*-7-2,g:0.22,s:4+Math.random()*5,c:cols[i%cols.length],a:1,rot:Math.random()*6}); }
+    if(!raf) tick();
+  }
+  function tick(){
+    ctx.clearRect(0,0,cv.width,cv.height); var alive=false;
+    parts.forEach(function(p){ p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.a-=0.012; if(p.a>0){alive=true; ctx.globalAlpha=Math.max(0,p.a); ctx.fillStyle=p.c; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot+=0.1); ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6); ctx.restore();} });
+    ctx.globalAlpha=1;
+    if(alive){ raf=requestAnimationFrame(tick); } else { parts=[]; raf=null; ctx.clearRect(0,0,cv.width,cv.height); }
+  }
+})();
+</script>

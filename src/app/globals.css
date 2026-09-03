@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Éclats — jetons de couleur (thème clair + sombre)
+   Chaque événement peut surcharger --sage / --champ via une
+   balise <style> injectée par le layout de l'événement.
+   ============================================================ */
+:root {
+  --bg: #efefe9;
+  --surface: #f7f7f2;
+  --surface-2: #fbfbf7;
+  --ink: #232b25;
+  --ink-soft: #5a6459;
+  --ink-faint: #8a917f;
+  --line: #deded4;
+  --line-strong: #cfcfc2;
+  --sage: #4f6152;
+  --sage-strong: #3c4c40;
+  --sage-tint: #e4eae1;
+  --champ: #b08748;
+  --champ-tint: #f0e6d4;
+  --on-accent: #f7f7f2;
+  --ok: #4f6152;
+
+  --font-display: "Marcellus";
+  --font-body: "Figtree";
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f120e;
+    --surface: #171b15;
+    --surface-2: #1e231b;
+    --ink: #ecebe1;
+    --ink-soft: #b4baac;
+    --ink-faint: #7e8577;
+    --line: #2a3026;
+    --line-strong: #38402f;
+    --sage: #9db39b;
+    --sage-strong: #b6c8b4;
+    --sage-tint: #212a1f;
+    --champ: #d6ac74;
+    --champ-tint: #2c2515;
+    --on-accent: #141810;
+    --ok: #9db39b;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f120e;
+  --surface: #171b15;
+  --surface-2: #1e231b;
+  --ink: #ecebe1;
+  --ink-soft: #b4baac;
+  --ink-faint: #7e8577;
+  --line: #2a3026;
+  --line-strong: #38402f;
+  --sage: #9db39b;
+  --sage-strong: #b6c8b4;
+  --sage-tint: #212a1f;
+  --champ: #d6ac74;
+  --champ-tint: #2c2515;
+  --on-accent: #141810;
+  --ok: #9db39b;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+@layer components {
+  .app-shell {
+    @apply mx-auto w-full max-w-app min-h-[100dvh] flex flex-col;
+    background: var(--surface);
+  }
+  .display {
+    font-family: var(--font-display), "Times New Roman", serif;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+  .eyebrow {
+    @apply uppercase font-semibold;
+    font-size: 11px;
+    letter-spacing: 0.28em;
+    color: var(--ink-faint);
+  }
+  .btn {
+    @apply flex items-center justify-center gap-2.5 rounded-field font-semibold cursor-pointer transition;
+    font-size: 16px;
+    padding: 16px 18px;
+    border: 1px solid transparent;
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+  .btn-primary {
+    background: var(--sage);
+    color: var(--on-accent);
+    @apply shadow-soft;
+  }
+  .btn-primary:hover {
+    background: var(--sage-strong);
+  }
+  .btn-ghost {
+    background: var(--surface-2);
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  .btn-ghost:hover {
+    border-color: var(--champ);
+  }
+  .btn-champ {
+    background: var(--champ);
+    color: var(--on-accent);
+    border: none;
+  }
+  .field-input {
+    @apply w-full rounded-field;
+    padding: 15px 16px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface-2);
+    color: var(--ink);
+    font-size: 16px;
+    transition: 0.18s;
+  }
+  .field-input:focus {
+    outline: none;
+    border-color: var(--sage);
+    box-shadow: 0 0 0 4px var(--sage-tint);
+  }
+  .field-input::placeholder {
+    color: var(--ink-faint);
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full font-semibold;
+    font-size: 13px;
+    padding: 9px 14px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--ink-soft);
+  }
+  .card {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    @apply rounded-card;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
