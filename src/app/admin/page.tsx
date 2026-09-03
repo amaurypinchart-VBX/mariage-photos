@@ -1,141 +1,69 @@
-"use client";
-
-import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 import ThemeToggle from "@/components/ThemeToggle";
 
-function LoginInner() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const next = params.get("next") || "/admin";
+export const dynamic = "force-dynamic";
 
-  const [step, setStep] = useState<"email" | "code">("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  // Étape 1 : envoyer le code à 6 chiffres par e-mail.
-  async function sendCode(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setBusy(true);
-    setError("");
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: true },
-    });
-    setBusy(false);
-    if (error) setError(error.message);
-    else setStep("code");
-  }
-
-  // Étape 2 : vérifier le code et ouvrir la session.
-  async function verify(e: React.FormEvent) {
-    e.preventDefault();
-    const token = code.replace(/\s/g, "");
-    if (token.length < 6) return;
-    setBusy(true);
-    setError("");
-    const supabase = createClient();
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token,
-      type: "email",
-    });
-    setBusy(false);
-    if (error) {
-      setError("Code incorrect ou expiré. Renvoie un nouveau code.");
-    } else {
-      router.push(next);
-      router.refresh();
-    }
-  }
-
+// Page d'accueil du site (racine). Les invités arrivent normalement
+// directement sur /e/<slug> via le QR code ; cette page sert de vitrine.
+export default function Home() {
   return (
-    <div className="mx-auto mt-10 max-w-[420px]">
-      <div className="mb-8 flex items-center justify-between">
+    <main className="app-shell">
+      <div className="flex items-center justify-between px-5 pb-1.5 pt-4">
         <div className="flex items-center gap-2">
-          <span className="h-[9px] w-[9px] rounded-full" style={{ background: "var(--champ)" }} />
-          <span className="text-[11px] font-bold uppercase" style={{ letterSpacing: "0.34em", color: "var(--ink-soft)" }}>
-            Éclats · Admin
+          <span
+            className="h-[9px] w-[9px] rounded-full"
+            style={{ background: "var(--champ)" }}
+          />
+          <span
+            className="text-[11px] font-bold uppercase"
+            style={{ letterSpacing: "0.34em", color: "var(--ink-soft)" }}
+          >
+            Éclats
           </span>
         </div>
         <ThemeToggle />
       </div>
 
-      <h1 className="display text-[32px] leading-tight">Espace organisateurs</h1>
-
-      {step === "email" ? (
-        <>
-          <p className="mt-2 text-[15px]" style={{ color: "var(--ink-soft)" }}>
-            Entre ton e-mail : tu recevras un <b>code à 6 chiffres</b> à recopier ici.
+      <div className="flex flex-1 flex-col px-6 pb-10 pt-4">
+        <div
+          className="card flex h-[220px] flex-col items-center justify-center px-6 text-center"
+          style={{
+            background:
+              "radial-gradient(120% 90% at 20% 0%, var(--champ-tint) 0%, transparent 55%), linear-gradient(160deg, var(--sage-tint) 0%, var(--surface-2) 60%)",
+          }}
+        >
+          <p className="eyebrow mb-3">Photos de mariage</p>
+          <h1 className="display text-[40px] leading-none">Éclats</h1>
+          <p
+            className="mt-3 text-sm"
+            style={{ color: "var(--ink-soft)" }}
+          >
+            Le partage de souvenirs, en beau et sans effort.
           </p>
-          <form onSubmit={sendCode} className="mt-6 flex flex-col gap-3">
-            <input
-              type="email"
-              required
-              autoFocus
-              placeholder="ton.email@exemple.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="field-input"
-            />
-            <button className="btn btn-primary" disabled={busy}>
-              {busy ? "Envoi…" : "Recevoir mon code"}
-            </button>
-            {error && (
-              <p className="text-[13px]" style={{ color: "#c0522d" }}>
-                {error}
-              </p>
-            )}
-          </form>
-        </>
-      ) : (
-        <>
-          <p className="mt-2 text-[15px]" style={{ color: "var(--ink-soft)" }}>
-            Un code a été envoyé à <b>{email}</b>. Saisis-le ci-dessous (regarde aussi tes spams).
-          </p>
-          <form onSubmit={verify} className="mt-6 flex flex-col gap-3">
-            <input
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              autoFocus
-              placeholder="123456"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-              className="field-input text-center"
-              style={{ letterSpacing: "0.4em", fontSize: "24px", fontWeight: 600 }}
-            />
-            <button className="btn btn-primary" disabled={busy || code.length < 6}>
-              {busy ? "Vérification…" : "Me connecter"}
-            </button>
-            {error && (
-              <p className="text-[13px]" style={{ color: "#c0522d" }}>
-                {error}
-              </p>
-            )}
-          </form>
-          <div className="mt-4 flex items-center justify-between text-[13px]">
-            <button onClick={() => { setStep("email"); setCode(""); setError(""); }} style={{ color: "var(--ink-soft)" }}>
-              ‹ Changer d&apos;e-mail
-            </button>
-            <button onClick={(e) => sendCode(e as unknown as React.FormEvent)} style={{ color: "var(--sage)" }}>
-              Renvoyer un code
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
+        </div>
 
-export default function LoginPage() {
-  return (
-    <Suspense fallback={null}>
-      <LoginInner />
-    </Suspense>
+        <p
+          className="mt-6 text-center text-[15px]"
+          style={{ color: "var(--ink-soft)" }}
+        >
+          Vos invités scannent un QR code, déposent leurs photos et jouent à la
+          roulette photo. Vous retrouvez tous les souvenirs dans un espace
+          privé.
+        </p>
+
+        <div className="mt-auto flex flex-col gap-3 pt-8">
+          <Link href="/admin" className="btn btn-primary">
+            Espace organisateurs
+          </Link>
+          <p
+            className="text-center text-xs"
+            style={{ color: "var(--ink-faint)" }}
+          >
+            Un lien invité ressemble à&nbsp;:{" "}
+            <code>/e/votre-mariage</code>
+          </p>
+        </div>
+      </div>
+    </main>
   );
 }
