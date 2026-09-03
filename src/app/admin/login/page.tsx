@@ -1,12 +1,11 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ThemeToggle from "@/components/ThemeToggle";
 
 function LoginInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/admin";
 
@@ -21,17 +20,18 @@ function LoginInner() {
     setBusy(true);
     setError("");
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
-    setBusy(false);
-    if (error) {
-      setError("E-mail ou mot de passe incorrect.");
-    } else {
-      router.push(next);
-      router.refresh();
+    if (error || !data.session) {
+      setBusy(false);
+      setError(error?.message || "E-mail ou mot de passe incorrect.");
+      return;
     }
+    // Rechargement complet de la page (et non une navigation interne) : le
+    // serveur reçoit tout de suite le cookie de session -> plus de retour en arrière.
+    window.location.assign(next);
   }
 
   return (
