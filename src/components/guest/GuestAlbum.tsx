@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { downloadSelection } from "@/lib/downloadSelection";
+import Lightbox from "@/components/Lightbox";
 
 export type AlbumItem = {
   id: string;
@@ -14,6 +15,9 @@ export default function GuestAlbum({ items }: { items: AlbumItem[] }) {
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const lightboxItems = items.filter((it) => it.kind === "image");
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -77,24 +81,29 @@ export default function GuestAlbum({ items }: { items: AlbumItem[] }) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {items.map((it) => {
           const isSelected = selected.has(it.id);
+          const openable = !selecting && it.kind === "image";
           return (
             <div
               key={it.id}
               className="card overflow-hidden"
-              onClick={() => (selecting ? toggleSelect(it.id) : undefined)}
-              style={{ cursor: selecting ? "pointer" : "default" }}
+              onClick={() => {
+                if (selecting) {
+                  toggleSelect(it.id);
+                  return;
+                }
+                if (openable) {
+                  const idx = lightboxItems.findIndex((x) => x.id === it.id);
+                  if (idx >= 0) setLightboxIndex(idx);
+                }
+              }}
+              style={{ cursor: selecting || openable ? "pointer" : "default" }}
             >
               <div className="relative" style={{ aspectRatio: "1", background: "var(--surface)" }}>
                 {it.kind === "video" ? (
                   <video src={it.url} controls={!selecting} playsInline className="h-full w-full object-cover" />
-                ) : selecting ? (
+                ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={it.url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <a href={it.url} target="_blank" rel="noreferrer">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={it.url} alt="" className="h-full w-full object-cover" />
-                  </a>
                 )}
                 {selecting && (
                   <span
@@ -112,6 +121,22 @@ export default function GuestAlbum({ items }: { items: AlbumItem[] }) {
           );
         })}
       </div>
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          items={lightboxItems}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onIndexChange={setLightboxIndex}
+          renderFooter={(item) => (
+            <div className="flex justify-center">
+              <a href={item.url} download target="_blank" rel="noreferrer" className="chip" style={{ cursor: "pointer" }}>
+                ⬇ Télécharger
+              </a>
+            </div>
+          )}
+        />
+      )}
 
       {selecting && selected.size > 0 && (
         <div

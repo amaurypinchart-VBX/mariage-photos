@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { downloadSelection } from "@/lib/downloadSelection";
+import Lightbox from "@/components/Lightbox";
 import type { GuestUpload, PhotoChallenge, ShareLink } from "@/lib/types";
 
 const NONE = "__none__";
@@ -49,6 +50,7 @@ export default function AdminGallery({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const filtered = items.filter((u) => {
     if (guestFilter && (u.guest_name || "").trim() !== guestFilter) return false;
@@ -57,6 +59,14 @@ export default function AdminGallery({
       return false;
     return true;
   });
+
+  const lightboxItems = filtered
+    .filter((u) => u.kind === "image" && urlByPath[u.storage_path])
+    .map((u) => ({ ...u, url: urlByPath[u.storage_path] }));
+
+  useEffect(() => {
+    setLightboxIndex(null);
+  }, [guestFilter, challengeFilter]);
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -78,9 +88,14 @@ export default function AdminGallery({
     return null;
   }
 
-  async function applyVisibility(value: string) {
-    if (selected.size === 0) return;
-    const ids = Array.from(selected);
+  function visibilityValue(u: GuestUpload): string {
+    if (u.visible_to_all) return ALL;
+    if (u.share_link_id) return u.share_link_id;
+    return NONE;
+  }
+
+  async function applyVisibility(ids: string[], value: string) {
+    if (ids.length === 0) return;
     const patch =
       value === NONE
         ? { share_link_id: null, visible_to_all: false }
@@ -170,25 +185,30 @@ export default function AdminGallery({
           const url = urlByPath[u.storage_path];
           const isSelected = selected.has(u.id);
           const badge = visibilityBadge(u);
+          const openable = !selecting && u.kind === "image" && !!url;
           return (
             <div
               key={u.id}
               className="card overflow-hidden"
-              onClick={() => selecting && toggleSelect(u.id)}
-              style={selecting ? { cursor: "pointer" } : undefined}
+              onClick={() => {
+                if (selecting) {
+                  toggleSelect(u.id);
+                  return;
+                }
+                if (openable) {
+                  const idx = lightboxItems.findIndex((x) => x.id === u.id);
+                  if (idx >= 0) setLightboxIndex(idx);
+                }
+              }}
+              style={selecting || openable ? { cursor: "pointer" } : undefined}
             >
               <div className="relative" style={{ aspectRatio: "1", background: "var(--surface)" }}>
                 {url ? (
                   u.kind === "video" ? (
                     <video src={url} controls={!selecting} playsInline className="h-full w-full object-cover" />
-                  ) : selecting ? (
+                  ) : (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={url} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <a href={url} target="_blank" rel="noreferrer">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt="" className="h-full w-full object-cover" />
-                    </a>
                   )
                 ) : (
                   <div className="grid h-full place-items-center text-[12px]" style={{ color: "var(--ink-faint)" }}>
@@ -225,7 +245,16 @@ export default function AdminGallery({
                   {u.guest_name || "Anonyme"}
                 </span>
                 {url && !selecting && (
-                  <a href={url} download target="_blank" rel="noreferrer" className="flex-none text-[13px]" style={{ color: "var(--sage)" }} title="Ouvrir / télécharger">
+                  <a
+                    href={url}
+                    download
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-none text-[13px]"
+                    style={{ color: "var(--sage)" }}
+                    title="Ouvrir / télécharger"
+                  >
                     ⬇
                   </a>
                 )}
@@ -234,6 +263,52 @@ export default function AdminGallery({
           );
         })}
       </div>
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          items={lightboxItems}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onIndexChange={setLightboxIndex}
+          renderCaption={(item) => (
+            <span>
+              {item.guest_name || "Anonyme"}
+              {item.challenge_id && challengeLabel[item.challenge_id]
+                ? ` · ${challengeLabel[item.challenge_id]}`
+                : ""}
+            </span>
+          )}
+          renderFooter={(item) => (
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={item.url}
+                download
+                target="_blank"
+                rel="noreferrer"
+                className="chip"
+                style={{ cursor: "pointer" }}
+              >
+                ⬇ Télécharger
+              </a>
+              <select
+                className="chip"
+                style={{ cursor: "pointer", color: "var(--ink)", marginLeft: "auto" }}
+                value={visibilityValue(item)}
+                disabled={applying}
+                onChange={(e) => applyVisibility([item.id], e.target.value)}
+              >
+                <option value={NONE}>Pas partagé</option>
+                <option value={ALL}>🌍 Tout</option>
+                {shareLinks.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        />
+      )}
 
       {selecting && selected.size > 0 && (
         <div
@@ -249,7 +324,7 @@ export default function AdminGallery({
             value=""
             disabled={applying}
             onChange={(e) => {
-              if (e.target.value) applyVisibility(e.target.value);
+              if (e.target.value) applyVisibility(Array.from(selected), e.target.value);
               e.target.value = "";
             }}
           >
