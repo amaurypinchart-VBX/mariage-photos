@@ -18,7 +18,7 @@ propre lien, ses couleurs et ses défis.
 
 1. Créer un projet **Supabase** (gratuit).
 2. Coller `supabase/schema.sql` puis `supabase/seed.sql` dans Supabase.
-3. Copier 2 clés depuis Supabase.
+3. Copier 3 clés depuis Supabase.
 4. Déployer sur **Vercel** (gratuit) en collant ces clés.
 5. Régler 2 URLs dans Supabase (authentification).
 6. Te déclarer **admin** avec une petite requête SQL.
@@ -61,8 +61,12 @@ section « Mettre le code sur GitHub » plus bas si besoin).
 4. Tu dois voir « Success. No rows returned ». ✅
 
 Cette étape crée les tables (`events`, `event_admins`, `photo_challenges`,
-`guest_uploads`), les règles d'accès (RLS) et le **bucket de stockage privé**
-`wedding-media`.
+`guest_uploads`, `share_links`), les règles d'accès (RLS) et le **bucket de
+stockage privé** `wedding-media`.
+
+> Tu as déjà un mariage en ligne et tu ajoutes juste cette fonctionnalité ?
+> Re-colle tout `supabase/schema.sql` et clique **Run** : le fichier est conçu
+> pour être ré-exécuté sans risque (il ne touche pas à tes données existantes).
 
 ### Puis les données de démo (le mariage « Amaury & Charlie » + les 30 défis)
 
@@ -79,12 +83,15 @@ Cette étape crée les tables (`events`, `event_admins`, `photo_challenges`,
 ## 3. Récupérer les 2 clés Supabase
 
 1. Dans Supabase : **Project Settings** (roue crantée) → **API**.
-2. Note ces deux valeurs :
+2. Note ces trois valeurs :
    - **Project URL** → ex. `https://abcdefgh.supabase.co`
    - **Project API keys → `anon` `public`** → une longue chaîne.
+   - **Project API keys → `service_role`** → une autre longue chaîne.
 
-> ⚠️ N'utilise **jamais** la clé `service_role` dans ce projet. On n'en a pas besoin :
-> toute la sécurité passe par les règles RLS.
+> ⚠️ La clé `service_role` est **secrète** : elle sert uniquement à faire fonctionner
+> les liens de partage invités (`/e/<slug>/album/<token>`), **côté serveur uniquement**.
+> Ne la mets jamais dans une variable préfixée `NEXT_PUBLIC_`, ne la commit jamais,
+> ne la partage jamais publiquement. Voir `SECURITY_AND_GDPR.md` pour le détail.
 
 ---
 
@@ -99,6 +106,7 @@ Si tu veux voir le site tourner chez toi avant de déployer :
    NEXT_PUBLIC_SUPABASE_URL=https://abcdefgh.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=ta_cle_anon
    NEXT_PUBLIC_SITE_URL=http://localhost:3000
+   SUPABASE_SERVICE_ROLE_KEY=ta_cle_service_role
    ```
 
 3. Dans un terminal, à la racine du projet :
@@ -140,6 +148,7 @@ Si tu veux voir le site tourner chez toi avant de déployer :
    |-----|--------|
    | `NEXT_PUBLIC_SUPABASE_URL` | ton Project URL Supabase |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ta clé `anon public` |
+   | `SUPABASE_SERVICE_ROLE_KEY` | ta clé `service_role` (⚠️ secrète, sans préfixe `NEXT_PUBLIC_`) |
    | `NEXT_PUBLIC_SITE_URL` | *(laisse vide pour l'instant, on revient après)* |
 
 3. Clique **Deploy**. Au bout d'1–2 minutes, tu obtiens une URL du type

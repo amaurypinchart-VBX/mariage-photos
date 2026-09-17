@@ -10,6 +10,15 @@
    concerné peuvent lire les photos, via des **URLs signées temporaires** (2 h).
 4. **Isolation entre mariages.** Les politiques RLS filtrent par événement : un
    admin d'un mariage n'accède pas aux données d'un autre.
+5. **Liens de partage = jeton porteur.** Un lien `/e/<slug>/album/<token>`
+   (Famille, Amis, Tout…) n'est protégé par **aucune règle RLS anon** : le
+   `token` (aléatoire, 32 caractères) est lui-même le secret d'accès. La page
+   qui le sert est un composant **serveur** qui (a) vérifie que le token
+   correspond à un `share_links` actif de l'événement demandé, puis (b) lit les
+   photos correspondantes et génère leurs URLs signées avec la clé
+   **`service_role`** (voir ci-dessous). Rien de tout cela ne passe par la clé
+   `anon`, publique dans le navigateur — sans quoi n'importe qui pourrait lister
+   toutes les photos partagées de tous les mariages sans connaître aucun lien.
 
 ## Règles RLS (dans `supabase/schema.sql`)
 
@@ -17,6 +26,9 @@
 - `guest_uploads` : `insert` autorisé aux invités si l'événement est actif ;
   `select`/`delete` réservés aux admins.
 - `photo_challenges` : lecture publique (défis actifs), écriture admin.
+- `share_links` : lecture/écriture réservées aux admins (`is_event_admin`).
+  Aucune policy anon — la lecture publique d'un lien passe par `service_role`
+  côté serveur (voir « Liens de partage » ci-dessus).
 - `storage.objects` (bucket `wedding-media`) : `insert` invité si l'événement
   (1er segment du chemin) est actif ; `select`/`delete` admin uniquement.
 - Fonction `is_event_admin(event uuid)` (`SECURITY DEFINER`) pour éviter la
@@ -49,4 +61,13 @@
   pour plus de discrétion, utilise un slug long/aléatoire.
 - Fais une **sauvegarde** des photos après le mariage (téléchargement depuis
   l'admin ou export depuis le dashboard Supabase Storage).
-- Ne partage jamais la clé `service_role`. L'app n'en utilise pas.
+- La clé `service_role` (utilisée pour les liens de partage, voir plus haut) est
+  **secrète** : ne la mets que dans `SUPABASE_SERVICE_ROLE_KEY` (jamais dans une
+  variable `NEXT_PUBLIC_*`, jamais commit, jamais partagée), en local ou dans les
+  variables d'environnement Vercel. Elle n'est utilisée que dans le code serveur
+  (`src/lib/supabase/admin.ts`), jamais côté navigateur.
+- Chaque lien de partage donne accès à toutes les photos qui lui sont
+  assignées, sans autre vérification que la possession du lien : traite-le
+  comme tu traiterais un mot de passe partagé (ne le publie pas sur un canal
+  public), et désactive-le (bouton « Inactif » dans l'admin) quand il n'est
+  plus utile.

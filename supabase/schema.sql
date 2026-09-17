@@ -47,6 +47,19 @@ create table if not exists public.photo_challenges (
 );
 create index if not exists idx_challenges_event on public.photo_challenges(event_id);
 
+-- Les liens de partage créés par les mariés (ex. "Famille", "Amis", "Tout").
+-- Chaque lien a un token aléatoire non-devinable ; c'est lui qui fait office de
+-- secret d'accès pour les invités (validé côté serveur, voir README/SECURITY).
+create table if not exists public.share_links (
+  id         uuid primary key default gen_random_uuid(),
+  event_id   uuid not null references public.events(id) on delete cascade,
+  label      text not null,
+  token      text unique not null,
+  is_active  boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_share_links_event on public.share_links(event_id);
+
 -- Les photos/vidéos déposées par les invités.
 create table if not exists public.guest_uploads (
   id           uuid primary key default gen_random_uuid(),
@@ -57,9 +70,15 @@ create table if not exists public.guest_uploads (
   mime_type    text,
   size_bytes   bigint,
   challenge_id uuid references public.photo_challenges(id) on delete set null,
+  share_link_id uuid references public.share_links(id) on delete set null, -- partagée avec ce lien précis
+  visible_to_all boolean not null default false,                          -- partagée avec "Tout"
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_uploads_event on public.guest_uploads(event_id, created_at desc);
+
+-- Colonnes ajoutées après la v1 : sans effet si la table existe déjà avec elles.
+alter table public.guest_uploads add column if not exists share_link_id uuid references public.share_links(id) on delete set null;
+alter table public.guest_uploads add column if not exists visible_to_all boolean not null default false;
 
 -- ============================================================================
 --  2. FONCTION D'AIDE — est-ce que l'utilisateur connecté administre ce mariage ?
@@ -85,6 +104,7 @@ alter table public.events           enable row level security;
 alter table public.event_admins     enable row level security;
 alter table public.photo_challenges enable row level security;
 alter table public.guest_uploads    enable row level security;
+alter table public.share_links      enable row level security;
 
 -- ---------- events ----------
 -- Lecture : événement actif visible par tous (les invités doivent lire le nom/date),
@@ -147,6 +167,24 @@ create policy "admins delete uploads" on public.guest_uploads
   for delete to authenticated
   using (public.is_event_admin(event_id));
 
+-- Mise à jour (ex. assigner un lien de partage / "Tout") : admins uniquement.
+drop policy if exists "admins update uploads" on public.guest_uploads;
+create policy "admins update uploads" on public.guest_uploads
+  for update to authenticated
+  using (public.is_event_admin(event_id))
+  with check (public.is_event_admin(event_id));
+
+-- ---------- share_links ----------
+-- Aucune policy anon : la lecture publique d'un lien de partage passe
+-- exclusivement par le client service_role côté serveur (jamais par la clé
+-- anon, publique dans le navigateur) — voir SECURITY_AND_GDPR.md.
+-- Les admins gèrent entièrement leurs propres liens.
+drop policy if exists "admins manage share links" on public.share_links;
+create policy "admins manage share links" on public.share_links
+  for all to authenticated
+  using (public.is_event_admin(event_id))
+  with check (public.is_event_admin(event_id));
+
 -- ============================================================================
 --  4. STOCKAGE (bucket privé wedding-media)
 -- ============================================================================
@@ -190,6 +228,15 @@ create policy "admins delete media" on storage.objects
     bucket_id = 'wedding-media'
     and public.is_event_admin( (split_part(name, '/', 1))::uuid )
   );
+
+-- ============================================================================
+--  Note : liens de partage invités (/e/<slug>/album/<token>)
+--  Volontairement, aucune policy anon ci-dessus ne donne accès aux photos
+--  partagées (share_link_id / visible_to_all) ni aux fichiers du bucket pour
+--  ces photos. La page publique du lien lit ces données côté serveur avec la
+--  clé service_role (jamais envoyée au navigateur) après avoir vérifié que le
+--  token correspond à un share_links actif. Voir SECURITY_AND_GDPR.md.
+-- ============================================================================
 
 -- ============================================================================
 --  Fin du schéma. Ensuite : exécute supabase/seed.sql pour créer le mariage démo.

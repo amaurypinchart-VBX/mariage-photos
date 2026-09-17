@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SITE_URL } from "@/lib/env";
-import type { GuestUpload, PhotoChallenge, WeddingEvent } from "@/lib/types";
+import type { GuestUpload, PhotoChallenge, ShareLink, WeddingEvent } from "@/lib/types";
 import ThemeToggle from "@/components/ThemeToggle";
 import SignOutButton from "@/components/admin/SignOutButton";
 import GameToggle from "@/components/admin/GameToggle";
 import QrCard from "@/components/admin/QrCard";
 import AdminGallery from "@/components/admin/AdminGallery";
 import ChallengesManager from "@/components/admin/ChallengesManager";
+import ShareLinksManager from "@/components/admin/ShareLinksManager";
 
 export const dynamic = "force-dynamic";
 
@@ -33,21 +34,30 @@ export default async function AdminEventPage({
   if (!eventData) notFound();
   const event = eventData as WeddingEvent;
 
-  const [{ data: uploadsData }, { data: challengesData }] = await Promise.all([
-    supabase
-      .from("guest_uploads")
-      .select("id, event_id, guest_name, storage_path, kind, mime_type, size_bytes, challenge_id, created_at")
-      .eq("event_id", event.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("photo_challenges")
-      .select("id, event_id, label, sort_order, unlock_threshold, is_active")
-      .eq("event_id", event.id)
-      .order("sort_order", { ascending: true }),
-  ]);
+  const [{ data: uploadsData }, { data: challengesData }, { data: shareLinksData }] =
+    await Promise.all([
+      supabase
+        .from("guest_uploads")
+        .select(
+          "id, event_id, guest_name, storage_path, kind, mime_type, size_bytes, challenge_id, share_link_id, visible_to_all, created_at"
+        )
+        .eq("event_id", event.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("photo_challenges")
+        .select("id, event_id, label, sort_order, unlock_threshold, is_active")
+        .eq("event_id", event.id)
+        .order("sort_order", { ascending: true }),
+      supabase
+        .from("share_links")
+        .select("id, event_id, label, token, is_active, created_at")
+        .eq("event_id", event.id)
+        .order("created_at", { ascending: true }),
+    ]);
 
   const uploads = (uploadsData as GuestUpload[]) ?? [];
   const challenges = (challengesData as PhotoChallenge[]) ?? [];
+  const shareLinks = (shareLinksData as ShareLink[]) ?? [];
 
   // URLs signées (temporaires, 2h) pour visualiser/télécharger les médias privés.
   const urlByPath: Record<string, string> = {};
@@ -105,13 +115,21 @@ export default async function AdminEventPage({
         <QrCard url={guestUrl} coupleNames={event.couple_names} />
       </div>
 
+      {/* Liens de partage */}
+      <h2 className="display mt-9 text-[24px]">Liens de partage</h2>
+      <p className="mb-3 mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
+        Crée un lien par public (famille, amis, tout le monde…). Choisis ensuite,
+        photo par photo dans la galerie ci-dessous, à qui chacune est partagée.
+      </p>
+      <ShareLinksManager eventId={event.id} slug={event.slug} siteUrl={SITE_URL} initial={shareLinks} />
+
       {/* Galerie */}
       <h2 className="display mt-9 text-[24px]">Galerie</h2>
       <p className="mb-3 mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
         Toutes les photos déposées par vos invités. Filtre par invité ou par défi,
-        télécharge à l&apos;unité.
+        sélectionne-en plusieurs pour les partager ou les télécharger d&apos;un coup.
       </p>
-      <AdminGallery uploads={uploads} urlByPath={urlByPath} challenges={challenges} />
+      <AdminGallery uploads={uploads} urlByPath={urlByPath} challenges={challenges} shareLinks={shareLinks} />
 
       {/* Défis */}
       <h2 className="display mt-10 text-[24px]">Défis de la roulette</h2>

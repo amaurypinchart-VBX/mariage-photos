@@ -31,19 +31,25 @@ src/
 │  │  ├─ page.tsx             Accueil : prénom + actions
 │  │  ├─ partager/page.tsx    Upload de photos/vidéos
 │  │  ├─ jeu/page.tsx         Roulette photo (30 défis)
+│  │  ├─ album/[token]/       Lien de partage (Famille/Amis/Tout…) : lecture
+│  │  │  ├─ page.tsx           seule, sélection + téléchargement (service_role)
+│  │  │  └─ not-found.tsx     Lien de partage invalide/désactivé
 │  │  └─ not-found.tsx        Lien invalide
 │  ├─ admin/                   ESPACE ORGANISATEURS (protégé)
 │  │  ├─ login/page.tsx       Connexion par lien magique
 │  │  ├─ page.tsx             Liste des mariages de l'utilisateur
-│  │  └─ [slug]/page.tsx      Galerie + stats + jeu + défis
+│  │  └─ [slug]/page.tsx      Galerie + stats + jeu + défis + liens de partage
 │  └─ auth/callback/route.ts   Échange du code de connexion
 ├─ components/
-│  ├─ guest/                   NameGate, Uploader, Roulette, GuestGreeting
-│  ├─ admin/                   GameToggle, QrCard, AdminGallery, ChallengesManager
+│  ├─ guest/                   NameGate, Uploader, Roulette, GuestGreeting, GuestAlbum
+│  ├─ admin/                   GameToggle, QrCard, AdminGallery, ChallengesManager,
+│  │                           ShareLinksManager
 │  ├─ BrandBar.tsx / ThemeToggle.tsx
 ├─ lib/
 │  ├─ supabase/{client,server,middleware}.ts   Clients Supabase (SSR)
+│  ├─ supabase/admin.ts       Client `service_role` (serveur uniquement, liens de partage)
 │  ├─ events.ts               Lecture des événements/défis (serveur)
+│  ├─ downloadSelection.ts    Téléchargement multi-fichiers (ZIP ou partage natif)
 │  ├─ types.ts, env.ts, format.ts, useGuestName.ts
 └─ middleware.ts              Rafraîchit la session + protège /admin
 ```
@@ -70,7 +76,8 @@ src/
 | `events` | Un mariage : slug, noms, date, lieu, couleurs, `game_active`, `is_active` |
 | `event_admins` | Qui administre quel mariage (`user_id` ↔ `event_id`) |
 | `photo_challenges` | Défis : `label`, `sort_order`, `unlock_threshold`, `is_active` |
-| `guest_uploads` | Chaque média : `storage_path`, `guest_name`, `kind`, `challenge_id` |
+| `share_links` | Lien de partage invités : `label`, `token`, `is_active` |
+| `guest_uploads` | Chaque média : `storage_path`, `guest_name`, `kind`, `challenge_id`, `share_link_id`, `visible_to_all` |
 
 Bucket de stockage : `wedding-media` (privé). Chemin d'un média :
 `<event_id>/<identifiant>-photo.jpg`.

@@ -31,6 +31,15 @@ export type PhotoChallenge = {
 
 export type MediaKind = "image" | "video";
 
+export type ShareLink = {
+  id: string;
+  event_id: string;
+  label: string;
+  token: string;
+  is_active: boolean;
+  created_at: string;
+};
+
 export type GuestUpload = {
   id: string;
   event_id: string;
@@ -40,5 +49,7 @@ export type GuestUpload = {
   mime_type: string | null;
   size_bytes: number | null;
   challenge_id: string | null;
+  share_link_id: string | null;
+  visible_to_all: boolean;
   created_at: string;
 };

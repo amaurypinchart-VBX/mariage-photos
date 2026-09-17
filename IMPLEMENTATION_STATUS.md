@@ -17,10 +17,20 @@ Dernière mise à jour : première version livrée.
   - Connexion par lien magique (sans mot de passe).
   - Liste des mariages de l'utilisateur.
   - Statistiques (photos, vidéos, invités).
-  - Galerie avec **URLs signées**, filtres par invité et par défi, téléchargement à l'unité.
+  - Galerie avec **URLs signées**, filtres par invité et par défi, sélection
+    multiple, téléchargement à l'unité ou en lot (ZIP, ou partage natif sur
+    mobile).
   - **Activation/désactivation de la roulette** en un clic.
   - Gestion des défis (ajouter / activer / supprimer).
+  - **Liens de partage nommés** (Famille, Amis, Tout…) : création/désactivation/
+    suppression, assignation de la visibilité par photo (un lien précis, « Tout »
+    de façon cumulative, ou non partagée).
   - QR code généré + téléchargeable.
+- **Galerie invités** : chaque lien de partage ouvre une page publique
+  `/e/<slug>/album/<token>` montrant uniquement les photos qui lui sont
+  destinées, avec sélection multiple + téléchargement (ZIP sur ordinateur,
+  partage natif vers la galerie sur mobile). Remplace l'ancien champ booléen
+  `gallery_public` (laissé inutilisé en base) par un système multi-liens.
 - **Base de données** : schéma complet, **RLS**, bucket privé + policies, données de démo.
 - Documentation : `README.md`, `ARCHITECTURE.md`, `SECURITY_AND_GDPR.md`.
 
@@ -37,18 +47,14 @@ Dernière mise à jour : première version livrée.
 - **Tri par IA** (regrouper la même personne, hommes/femmes/enfants) : **non
   inclus**. Nécessite de la reconnaissance faciale (donnée biométrique) →
   consentement RGPD explicite. Fondations prêtes, à activer en v2.
-- **Export « tout télécharger » en un zip** : pour l'instant téléchargement à
-  l'unité (ou export depuis le dashboard Supabase).
-- **Galerie visible par les invités** (`gallery_public`) : champ présent en base,
-  interface non encore branchée.
 
 ## 🗺️ Prochaines étapes proposées (roadmap)
 
 1. Test en ligne complet + petits ajustements visuels selon ton retour.
-2. Bouton « Tout télécharger » (zip) côté admin.
-3. Tri IA **simple** (sans visages) : photos de groupe, extérieur/intérieur,
+2. Tri IA **simple** (sans visages) : photos de groupe, extérieur/intérieur,
    moment de danse, détection de doublons — via un service d'IA à clé.
-4. Modération : masquer/supprimer en un clic, signalement.
-5. v2 sensible : regroupement facial **avec** case de consentement biométrique.
-6. Galerie publique optionnelle (diaporama en soirée / mur de photos).
-7. Multi-langue (FR/EN/NL) pour les invités internationaux.
+3. Modération : masquer/supprimer en un clic, signalement.
+4. v2 sensible : regroupement facial **avec** case de consentement biométrique.
+5. Diaporama en soirée / mur de photos (affichage plein écran, différent des
+   liens de partage individuels).
+6. Multi-langue (FR/EN/NL) pour les invités internationaux.

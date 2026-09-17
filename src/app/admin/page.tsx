@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { GuestUpload, PhotoChallenge, WeddingEvent } from "@/lib/types";
+import type { GuestUpload, PhotoChallenge, ShareLink, WeddingEvent } from "@/lib/types";
 import ThemeToggle from "@/components/ThemeToggle";
 import QrCard from "@/components/admin/QrCard";
 import GameToggle from "@/components/admin/GameToggle";
 import AdminGallery from "@/components/admin/AdminGallery";
 import ChallengesManager from "@/components/admin/ChallengesManager";
+import ShareLinksManager from "@/components/admin/ShareLinksManager";
 
 const EVENT_COLS =
   "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, is_active, created_at";
@@ -16,6 +17,7 @@ type Detail = {
   uploads: GuestUpload[];
   urlByPath: Record<string, string>;
   challenges: PhotoChallenge[];
+  shareLinks: ShareLink[];
 };
 
 export default function AdminPage() {
@@ -79,10 +81,12 @@ export default function AdminPage() {
     setSelected(ev);
     setDetail(null);
     const supabase = createClient();
-    const [{ data: up }, { data: ch }] = await Promise.all([
+    const [{ data: up }, { data: ch }, { data: sl }] = await Promise.all([
       supabase
         .from("guest_uploads")
-        .select("id, event_id, guest_name, storage_path, kind, mime_type, size_bytes, challenge_id, created_at")
+        .select(
+          "id, event_id, guest_name, storage_path, kind, mime_type, size_bytes, challenge_id, share_link_id, visible_to_all, created_at"
+        )
         .eq("event_id", ev.id)
         .order("created_at", { ascending: false }),
       supabase
@@ -90,9 +94,15 @@ export default function AdminPage() {
         .select("id, event_id, label, sort_order, unlock_threshold, is_active")
         .eq("event_id", ev.id)
         .order("sort_order", { ascending: true }),
+      supabase
+        .from("share_links")
+        .select("id, event_id, label, token, is_active, created_at")
+        .eq("event_id", ev.id)
+        .order("created_at", { ascending: true }),
     ]);
     const uploads = (up as GuestUpload[]) ?? [];
     const challenges = (ch as PhotoChallenge[]) ?? [];
+    const shareLinks = (sl as ShareLink[]) ?? [];
     const urlByPath: Record<string, string> = {};
     if (uploads.length > 0) {
       const { data: signed } = await supabase.storage
@@ -102,7 +112,7 @@ export default function AdminPage() {
         if (s.signedUrl && s.path) urlByPath[s.path] = s.signedUrl;
       });
     }
-    setDetail({ uploads, urlByPath, challenges });
+    setDetail({ uploads, urlByPath, challenges, shareLinks });
   }
 
   async function signIn(e: React.FormEvent) {
@@ -209,11 +219,23 @@ export default function AdminPage() {
               <GameToggle eventId={selected.id} slug={selected.slug} initial={selected.game_active} />
               <QrCard url={guestUrl} coupleNames={selected.couple_names} />
             </div>
+            <h2 className="display mt-9 text-[24px]">Liens de partage</h2>
+            <p className="mb-3 mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
+              Crée un lien par public (famille, amis, tout le monde…). Choisis ensuite,
+              photo par photo dans la galerie ci-dessous, à qui chacune est partagée.
+            </p>
+            <ShareLinksManager eventId={selected.id} slug={selected.slug} siteUrl={baseUrl} initial={detail.shareLinks} />
             <h2 className="display mt-9 text-[24px]">Galerie</h2>
             <p className="mb-3 mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
-              Toutes les photos déposées par vos invités. Filtre par invité ou par défi, télécharge à l&apos;unité.
+              Toutes les photos déposées par vos invités. Filtre par invité ou par défi,
+              sélectionne-en plusieurs pour les partager ou les télécharger d&apos;un coup.
             </p>
-            <AdminGallery uploads={detail.uploads} urlByPath={detail.urlByPath} challenges={detail.challenges} />
+            <AdminGallery
+              uploads={detail.uploads}
+              urlByPath={detail.urlByPath}
+              challenges={detail.challenges}
+              shareLinks={detail.shareLinks}
+            />
             <h2 className="display mt-10 text-[24px]">Défis de la roulette</h2>
             <p className="mb-3 mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
               Active, désactive ou ajoute des défis (« débloqué après » = défi bonus, 0 = disponible tout de suite).
