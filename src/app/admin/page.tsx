@@ -18,6 +18,7 @@ type Detail = {
   urlByPath: Record<string, string>;
   challenges: PhotoChallenge[];
   shareLinks: ShareLink[];
+  loadError: string | null;
 };
 
 export default function AdminPage() {
@@ -81,7 +82,11 @@ export default function AdminPage() {
     setSelected(ev);
     setDetail(null);
     const supabase = createClient();
-    const [{ data: up }, { data: ch }, { data: sl }] = await Promise.all([
+    const [
+      { data: up, error: upErr },
+      { data: ch, error: chErr },
+      { data: sl, error: slErr },
+    ] = await Promise.all([
       supabase
         .from("guest_uploads")
         .select(
@@ -100,6 +105,9 @@ export default function AdminPage() {
         .eq("event_id", ev.id)
         .order("created_at", { ascending: true }),
     ]);
+    // Une requête en erreur (ex. colonne/table manquante après une restauration
+    // de base) ne doit jamais se faire passer pour "0 photo" : on le signale.
+    const loadError = upErr?.message || chErr?.message || slErr?.message || null;
     const uploads = (up as GuestUpload[]) ?? [];
     const challenges = (ch as PhotoChallenge[]) ?? [];
     const shareLinks = (sl as ShareLink[]) ?? [];
@@ -112,7 +120,7 @@ export default function AdminPage() {
         if (s.signedUrl && s.path) urlByPath[s.path] = s.signedUrl;
       });
     }
-    setDetail({ uploads, urlByPath, challenges, shareLinks });
+    setDetail({ uploads, urlByPath, challenges, shareLinks, loadError });
   }
 
   async function signIn(e: React.FormEvent) {
@@ -208,6 +216,24 @@ export default function AdminPage() {
 
         {!detail ? (
           <p className="mt-6" style={{ color: "var(--ink-soft)" }}>Chargement des photos…</p>
+        ) : detail.loadError ? (
+          <div className="card mt-6 p-6" style={{ borderColor: "#c0522d" }}>
+            <p className="font-semibold" style={{ color: "#c0522d" }}>
+              Erreur de chargement des données
+            </p>
+            <p className="mt-2 text-[13.5px]" style={{ color: "var(--ink-soft)" }}>
+              {detail.loadError}
+            </p>
+            <p className="mt-3 text-[13px]" style={{ color: "var(--ink-soft)" }}>
+              Ceci ne veut pas dire que tes photos ont été supprimées — la requête a
+              échoué (souvent parce que le schéma de la base n&apos;est pas à jour).
+              Recolle <code>supabase/schema.sql</code> dans le SQL Editor Supabase,
+              puis réessaie.
+            </p>
+            <button onClick={() => openEvent(selected)} className="btn btn-ghost mt-4">
+              Réessayer
+            </button>
+          </div>
         ) : (
           <>
             <div className="mt-5 grid grid-cols-3 gap-3">

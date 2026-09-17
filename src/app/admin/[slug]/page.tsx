@@ -34,27 +34,33 @@ export default async function AdminEventPage({
   if (!eventData) notFound();
   const event = eventData as WeddingEvent;
 
-  const [{ data: uploadsData }, { data: challengesData }, { data: shareLinksData }] =
-    await Promise.all([
-      supabase
-        .from("guest_uploads")
-        .select(
-          "id, event_id, guest_name, storage_path, kind, mime_type, size_bytes, challenge_id, share_link_id, visible_to_all, created_at"
-        )
-        .eq("event_id", event.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("photo_challenges")
-        .select("id, event_id, label, sort_order, unlock_threshold, is_active")
-        .eq("event_id", event.id)
-        .order("sort_order", { ascending: true }),
-      supabase
-        .from("share_links")
-        .select("id, event_id, label, token, is_active, created_at")
-        .eq("event_id", event.id)
-        .order("created_at", { ascending: true }),
-    ]);
+  const [
+    { data: uploadsData, error: uploadsError },
+    { data: challengesData, error: challengesError },
+    { data: shareLinksData, error: shareLinksError },
+  ] = await Promise.all([
+    supabase
+      .from("guest_uploads")
+      .select(
+        "id, event_id, guest_name, storage_path, kind, mime_type, size_bytes, challenge_id, share_link_id, visible_to_all, created_at"
+      )
+      .eq("event_id", event.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("photo_challenges")
+      .select("id, event_id, label, sort_order, unlock_threshold, is_active")
+      .eq("event_id", event.id)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("share_links")
+      .select("id, event_id, label, token, is_active, created_at")
+      .eq("event_id", event.id)
+      .order("created_at", { ascending: true }),
+  ]);
 
+  // Une requête en erreur (ex. colonne/table manquante après une restauration
+  // de base) ne doit jamais se faire passer pour "0 photo" : on le signale.
+  const loadError = uploadsError?.message || challengesError?.message || shareLinksError?.message || null;
   const uploads = (uploadsData as GuestUpload[]) ?? [];
   const challenges = (challengesData as PhotoChallenge[]) ?? [];
   const shareLinks = (shareLinksData as ShareLink[]) ?? [];
@@ -101,6 +107,23 @@ export default async function AdminEventPage({
           </Link>
         </div>
       </div>
+
+      {loadError && (
+        <div className="card mt-5 p-6" style={{ borderColor: "#c0522d" }}>
+          <p className="font-semibold" style={{ color: "#c0522d" }}>
+            Erreur de chargement des données
+          </p>
+          <p className="mt-2 text-[13.5px]" style={{ color: "var(--ink-soft)" }}>
+            {loadError}
+          </p>
+          <p className="mt-3 text-[13px]" style={{ color: "var(--ink-soft)" }}>
+            Ceci ne veut pas dire que tes photos ont été supprimées — la requête a
+            échoué (souvent parce que le schéma de la base n&apos;est pas à jour).
+            Recolle <code>supabase/schema.sql</code> dans le SQL Editor Supabase,
+            puis recharge cette page.
+          </p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="mt-5 grid grid-cols-3 gap-3">
