@@ -21,6 +21,7 @@ export default function AdminPage() {
 
   // data
   const [events, setEvents] = useState<WeddingEvent[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // --- session ---
   useEffect(() => {
@@ -37,18 +38,29 @@ export default function AdminPage() {
 
   // --- load the events this admin manages ---
   const loadEvents = useCallback(async () => {
+    setLoadError(null);
     const supabase = createClient();
-    const { data: memberships } = await supabase.from("event_admins").select("event_id");
+    const { data: memberships, error: membershipsError } = await supabase.from("event_admins").select("event_id");
+    if (membershipsError) {
+      setLoadError(membershipsError.message);
+      setEvents([]);
+      return;
+    }
     const ids = (memberships ?? []).map((m) => m.event_id as string);
     if (ids.length === 0) {
       setEvents([]);
       return;
     }
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("events")
       .select(EVENT_COLS)
       .in("id", ids)
       .order("created_at", { ascending: false });
+    if (error) {
+      setLoadError(error.message);
+      setEvents([]);
+      return;
+    }
     setEvents((data as WeddingEvent[]) ?? []);
   }, []);
 
@@ -132,7 +144,22 @@ export default function AdminPage() {
       <h1 className="display text-[34px] leading-tight">Vos mariages</h1>
       <p className="mt-1 text-[14px]" style={{ color: "var(--ink-soft)" }}>Connecté en tant que {userEmail}</p>
 
-      {events === null ? (
+      {loadError ? (
+        <div className="card mt-6 p-6" style={{ borderColor: "#c0522d" }}>
+          <p className="font-semibold" style={{ color: "#c0522d" }}>
+            Erreur de chargement des mariages
+          </p>
+          <p className="mt-2 text-[13.5px]" style={{ color: "var(--ink-soft)" }}>
+            {loadError}
+          </p>
+          <p className="mt-3 text-[13px]" style={{ color: "var(--ink-soft)" }}>
+            Tes mariages n&apos;ont pas été supprimés — la requête a échoué (souvent
+            parce que le schéma de la base n&apos;est pas à jour). Recolle{" "}
+            <code>supabase/schema.sql</code> dans le SQL Editor Supabase, puis
+            recharge cette page.
+          </p>
+        </div>
+      ) : events === null ? (
         <p className="mt-6" style={{ color: "var(--ink-soft)" }}>Chargement…</p>
       ) : events.length === 0 ? (
         <div className="card mt-6 p-6">
