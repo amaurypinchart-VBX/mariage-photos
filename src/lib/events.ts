@@ -9,7 +9,7 @@ export async function getEventBySlug(
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, guestbook_active, is_active, created_at"
+      "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, guestbook_active, guestbook_cover_title, guestbook_cover_message, guestbook_cover_stickers, is_active, created_at"
     )
     .eq("slug", slug)
     .eq("is_active", true)

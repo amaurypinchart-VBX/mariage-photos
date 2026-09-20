@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SITE_URL } from "@/lib/env";
 import type { GuestUpload, PhotoChallenge, ShareLink, WeddingEvent } from "@/lib/types";
-import { getGuestbookPages, getDestinationTallies } from "@/lib/guestbookAdmin";
+import { getGuestbookPages, getGuestbookCover, getDestinationTallies } from "@/lib/guestbookAdmin";
 import ThemeToggle from "@/components/ThemeToggle";
 import SignOutButton from "@/components/admin/SignOutButton";
 import GameToggle from "@/components/admin/GameToggle";
@@ -12,6 +12,7 @@ import AdminGallery from "@/components/admin/AdminGallery";
 import ChallengesManager from "@/components/admin/ChallengesManager";
 import ShareLinksManager from "@/components/admin/ShareLinksManager";
 import GuestbookToggle from "@/components/admin/GuestbookToggle";
+import GuestbookCoverEditor from "@/components/admin/GuestbookCoverEditor";
 import GuestbookManager from "@/components/admin/GuestbookManager";
 import DestinationPollManager from "@/components/admin/DestinationPollManager";
 
@@ -31,7 +32,7 @@ export default async function AdminEventPage({
   const { data: eventData } = await supabase
     .from("events")
     .select(
-      "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, guestbook_active, is_active, created_at"
+      "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, guestbook_active, guestbook_cover_title, guestbook_cover_message, guestbook_cover_stickers, is_active, created_at"
     )
     .eq("slug", params.slug)
     .maybeSingle();
@@ -69,9 +70,10 @@ export default async function AdminEventPage({
   const challenges = (challengesData as PhotoChallenge[]) ?? [];
   const shareLinks = (shareLinksData as ShareLink[]) ?? [];
 
-  // Livre d'or : invités, pages et médias associés (partagé avec la page /livre-dor).
-  const [guestPages, destinationTallies] = await Promise.all([
+  // Livre d'or : invités, pages, couverture et médias associés (partagé avec /livre-dor).
+  const [guestPages, cover, destinationTallies] = await Promise.all([
     getGuestbookPages(supabase, event.id),
+    getGuestbookCover(supabase, event),
     getDestinationTallies(supabase, event.id),
   ]);
 
@@ -160,6 +162,15 @@ export default async function AdminEventPage({
         message vocal). Le lien est affiché à vos invités dès que c&apos;est activé.
       </p>
       <GuestbookToggle eventId={event.id} initial={event.guestbook_active} />
+      <div className="mt-4">
+        <GuestbookCoverEditor
+          eventId={event.id}
+          initialTitle={cover.title}
+          initialMessage={cover.message}
+          initialStickers={cover.stickers}
+          initialPhotos={cover.photos}
+        />
+      </div>
       <div className="mt-4">
         <GuestbookManager initial={guestPages} />
       </div>

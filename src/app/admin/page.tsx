@@ -7,7 +7,7 @@ import type { WeddingEvent } from "@/lib/types";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const EVENT_COLS =
-  "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, guestbook_active, is_active, created_at";
+  "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, guestbook_active, guestbook_cover_title, guestbook_cover_message, guestbook_cover_stickers, is_active, created_at";
 
 export default function AdminPage() {
   const [ready, setReady] = useState(false);

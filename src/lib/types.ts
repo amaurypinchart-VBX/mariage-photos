@@ -17,6 +17,9 @@ export type WeddingEvent = {
   game_active: boolean;
   gallery_public: boolean;
   guestbook_active: boolean;
+  guestbook_cover_title: string | null;
+  guestbook_cover_message: string | null;
+  guestbook_cover_stickers: StickerPlacement[];
   is_active: boolean;
   created_at: string;
 };
@@ -95,6 +98,18 @@ export type GuestbookMedia = {
   kind: GuestbookMediaKind;
   mime_type: string | null;
   size_bytes: number | null;
+  created_at: string;
+};
+
+// Photo de la page de couverture du livre d'or (le titre/message/stickers de
+// la couverture vivent sur WeddingEvent.guestbook_cover_*).
+export type GuestbookCoverPhoto = {
+  id: string;
+  event_id: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  sort_order: number;
   created_at: string;
 };
 

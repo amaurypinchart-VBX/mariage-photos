@@ -80,6 +80,9 @@ create index if not exists idx_uploads_event on public.guest_uploads(event_id, c
 alter table public.guest_uploads add column if not exists share_link_id uuid references public.share_links(id) on delete set null;
 alter table public.guest_uploads add column if not exists visible_to_all boolean not null default false;
 alter table public.events add column if not exists guestbook_active boolean not null default false;
+alter table public.events add column if not exists guestbook_cover_title text;
+alter table public.events add column if not exists guestbook_cover_message text;
+alter table public.events add column if not exists guestbook_cover_stickers jsonb not null default '[]'::jsonb;
 
 -- ---------- Livre d'or ----------
 -- Un invité identifié par prénom + code PIN (haché côté Next.js avec scrypt),
@@ -119,6 +122,20 @@ create table if not exists public.guestbook_media (
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_guestbook_media_entry on public.guestbook_media(entry_id);
+
+-- Photos de la page de couverture du livre d'or (titre/message/stickers vivent
+-- directement sur `events.guestbook_cover_*`). Gérée par les mariés, visible
+-- par tous les invités qui ouvrent le livre d'or.
+create table if not exists public.guestbook_cover_photos (
+  id           uuid primary key default gen_random_uuid(),
+  event_id     uuid not null references public.events(id) on delete cascade,
+  storage_path text not null,
+  mime_type    text,
+  size_bytes   bigint,
+  sort_order   int not null default 0,
+  created_at   timestamptz not null default now()
+);
+create index if not exists idx_cover_photos_event on public.guestbook_cover_photos(event_id, sort_order);
 
 -- ---------- Vote destination lune de miel (public, mis à jour en direct) ----------
 create table if not exists public.destination_options (
@@ -171,6 +188,7 @@ alter table public.guestbook_entries    enable row level security;
 alter table public.guestbook_media      enable row level security;
 alter table public.destination_options  enable row level security;
 alter table public.destination_votes    enable row level security;
+alter table public.guestbook_cover_photos enable row level security;
 
 -- ---------- events ----------
 -- Lecture : événement actif visible par tous (les invités doivent lire le nom/date),
@@ -314,6 +332,24 @@ create policy "destination votes readable" on public.destination_votes
 
 drop policy if exists "admins manage destination votes" on public.destination_votes;
 create policy "admins manage destination votes" on public.destination_votes
+  for all to authenticated
+  using (public.is_event_admin(event_id))
+  with check (public.is_event_admin(event_id));
+
+-- ---------- guestbook_cover_photos ----------
+-- Lecture publique (la couverture du livre d'or est visible par tous les
+-- invités qui ouvrent la page, avant même de s'identifier). Écriture : mariés
+-- uniquement.
+drop policy if exists "cover photos readable" on public.guestbook_cover_photos;
+create policy "cover photos readable" on public.guestbook_cover_photos
+  for select to anon, authenticated
+  using (
+    public.is_event_admin(event_id)
+    or exists (select 1 from public.events e where e.id = event_id and e.is_active)
+  );
+
+drop policy if exists "admins manage cover photos" on public.guestbook_cover_photos;
+create policy "admins manage cover photos" on public.guestbook_cover_photos
   for all to authenticated
   using (public.is_event_admin(event_id))
   with check (public.is_event_admin(event_id));

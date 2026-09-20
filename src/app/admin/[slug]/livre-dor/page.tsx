@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getGuestbookPages } from "@/lib/guestbookAdmin";
+import { getGuestbookPages, getGuestbookCover } from "@/lib/guestbookAdmin";
 import type { WeddingEvent } from "@/lib/types";
 import ThemeToggle from "@/components/ThemeToggle";
 import GuestbookBookViewer from "@/components/admin/GuestbookBookViewer";
@@ -22,14 +22,17 @@ export default async function AdminGuestbookPage({
   const { data: eventData } = await supabase
     .from("events")
     .select(
-      "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, guestbook_active, is_active, created_at"
+      "id, slug, couple_names, event_date, place, welcome_message, color_primary, color_accent, game_active, gallery_public, guestbook_active, guestbook_cover_title, guestbook_cover_message, guestbook_cover_stickers, is_active, created_at"
     )
     .eq("slug", params.slug)
     .maybeSingle();
   if (!eventData) notFound();
   const event = eventData as WeddingEvent;
 
-  const pages = await getGuestbookPages(supabase, event.id);
+  const [pages, cover] = await Promise.all([
+    getGuestbookPages(supabase, event.id),
+    getGuestbookCover(supabase, event),
+  ]);
 
   return (
     <div>
@@ -44,7 +47,7 @@ export default async function AdminGuestbookPage({
       <h1 className="display text-[30px] leading-tight">{event.couple_names}</h1>
 
       <div className="mt-6">
-        <GuestbookBookViewer pages={pages} />
+        <GuestbookBookViewer coupleNames={event.couple_names} cover={cover} pages={pages} />
       </div>
     </div>
   );

@@ -1,8 +1,24 @@
 import "server-only";
 import type { createClient } from "@/lib/supabase/server";
-import type { DestinationOption, DestinationVote, Guest, GuestbookEntry, GuestbookMedia } from "@/lib/types";
+import type {
+  DestinationOption,
+  DestinationVote,
+  Guest,
+  GuestbookCoverPhoto,
+  GuestbookEntry,
+  GuestbookMedia,
+  StickerPlacement,
+  WeddingEvent,
+} from "@/lib/types";
 
 type ServerSupabase = ReturnType<typeof createClient>;
+
+export type GuestbookCoverData = {
+  title: string | null;
+  message: string | null;
+  stickers: StickerPlacement[];
+  photos: { id: string; url: string }[];
+};
 
 export type GuestPage = {
   guest: Guest;
@@ -88,6 +104,39 @@ export async function getGuestbookPages(supabase: ServerSupabase, eventId: strin
     };
     return { guest, entry, media: mediaByEntryId.get(entry.id) ?? [] };
   });
+}
+
+// Récupère la page de couverture du livre d'or (titre/message/stickers vivent
+// sur `events`, les photos dans leur propre table) avec ses URLs signées.
+export async function getGuestbookCover(supabase: ServerSupabase, event: WeddingEvent): Promise<GuestbookCoverData> {
+  const { data: photosData } = await supabase
+    .from("guestbook_cover_photos")
+    .select("id, event_id, storage_path, mime_type, size_bytes, sort_order, created_at")
+    .eq("event_id", event.id)
+    .order("sort_order", { ascending: true });
+  const photoRows = (photosData as GuestbookCoverPhoto[]) ?? [];
+
+  let photos: { id: string; url: string }[] = [];
+  if (photoRows.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from("guestbook-media")
+      .createSignedUrls(
+        photoRows.map((p) => p.storage_path),
+        SIGNED_URL_TTL
+      );
+    const urlByPath: Record<string, string> = {};
+    (signed ?? []).forEach((s) => {
+      if (s.signedUrl && s.path) urlByPath[s.path] = s.signedUrl;
+    });
+    photos = photoRows.filter((p) => urlByPath[p.storage_path]).map((p) => ({ id: p.id, url: urlByPath[p.storage_path] }));
+  }
+
+  return {
+    title: event.guestbook_cover_title,
+    message: event.guestbook_cover_message,
+    stickers: event.guestbook_cover_stickers ?? [],
+    photos,
+  };
 }
 
 export async function getDestinationTallies(supabase: ServerSupabase, eventId: string): Promise<DestinationTally[]> {

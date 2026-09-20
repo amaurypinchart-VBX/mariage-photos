@@ -2,38 +2,30 @@
 
 import { useMemo, useState } from "react";
 import type { GuestPage } from "@/lib/guestbookAdmin";
-import type { StickerPlacement } from "@/lib/types";
-
-function StaticStickers({ stickers }: { stickers: StickerPlacement[] }) {
-  return (
-    <div className="pointer-events-none absolute inset-0">
-      {stickers.map((s) => (
-        <span
-          key={s.id}
-          className="absolute select-none"
-          style={{
-            left: `${s.xPct}%`,
-            top: `${s.yPct}%`,
-            transform: `translate(-50%, -50%) rotate(${s.rotationDeg}deg) scale(${s.scale})`,
-            fontSize: "30px",
-            lineHeight: 1,
-          }}
-        >
-          {s.emoji}
-        </span>
-      ))}
-    </div>
-  );
-}
+import type { GuestbookCoverData } from "@/lib/guestbookAdmin";
+import StaticStickers from "@/components/guestbook/StaticStickers";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
-export default function GuestbookBookViewer({ pages }: { pages: GuestPage[] }) {
+const paperStyle: React.CSSProperties = {
+  background: "repeating-linear-gradient(#fdfaf1, #fdfaf1 33px, rgba(79,97,82,.08) 34px)",
+};
+
+export default function GuestbookBookViewer({
+  coupleNames,
+  cover,
+  pages,
+}: {
+  coupleNames: string;
+  cover: GuestbookCoverData;
+  pages: GuestPage[];
+}) {
   const sorted = useMemo(() => [...pages].sort((a, b) => a.guest.name.localeCompare(b.guest.name, "fr")), [pages]);
+  const hasCover = !!(cover.title || cover.message || cover.stickers.length > 0 || cover.photos.length > 0);
+  const count = (hasCover ? 1 : 0) + sorted.length;
   const [index, setIndex] = useState(0);
-  const count = sorted.length;
 
   if (count === 0) {
     return (
@@ -46,7 +38,7 @@ export default function GuestbookBookViewer({ pages }: { pages: GuestPage[] }) {
         </div>
         <p className="font-semibold">Le livre d&apos;or est encore vide</p>
         <p className="mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
-          Les pages de vos invités apparaîtront ici au fur et à mesure.
+          Ajoute une couverture ci-dessous, et les pages de vos invités apparaîtront ici au fur et à mesure.
         </p>
       </div>
     );
@@ -55,13 +47,9 @@ export default function GuestbookBookViewer({ pages }: { pages: GuestPage[] }) {
   const safeIndex = Math.min(index, count - 1);
   const goPrev = () => setIndex((i) => (Math.min(i, count - 1) - 1 + count) % count);
   const goNext = () => setIndex((i) => (Math.min(i, count - 1) + 1) % count);
-  const { guest, entry, media } = sorted[safeIndex];
-  const isBlank = !entry.message && entry.stickers.length === 0 && media.length === 0;
 
-  const paperStyle: React.CSSProperties = {
-    background:
-      "repeating-linear-gradient(var(--book-paper, #fdfaf1), var(--book-paper, #fdfaf1) 33px, rgba(79,97,82,.08) 34px)",
-  };
+  const isCoverPage = hasCover && safeIndex === 0;
+  const guestPage = !isCoverPage ? sorted[safeIndex - (hasCover ? 1 : 0)] : null;
 
   return (
     <div>
@@ -97,62 +85,115 @@ export default function GuestbookBookViewer({ pages }: { pages: GuestPage[] }) {
               }}
             />
 
-            {/* Page de gauche : le mot de l'invité */}
-            <div className="relative border-b p-5 sm:border-b-0 sm:border-r" style={{ ...paperStyle, borderColor: "rgba(79,97,82,.14)" }}>
-              <div className="eyebrow" style={{ color: "var(--sage)" }}>
-                {formatDate(entry.updated_at)}
-              </div>
-              <div className="display mt-1 text-[22px]">{guest.name}</div>
-
-              <div className="relative mt-4" style={{ minHeight: 160 }}>
-                {entry.message ? (
-                  <p
-                    className="whitespace-pre-wrap"
-                    style={{ fontFamily: "var(--font-hand)", fontSize: "27px", lineHeight: 1.3, color: "var(--ink)" }}
-                  >
-                    {entry.message}
-                  </p>
-                ) : (
-                  <p className="italic" style={{ fontFamily: "var(--font-hand)", fontSize: "22px", color: "var(--ink-faint)" }}>
-                    Cette page n&apos;a pas encore été écrite…
-                  </p>
-                )}
-                <StaticStickers stickers={entry.stickers} />
-              </div>
-            </div>
-
-            {/* Page de droite : les souvenirs joints */}
-            <div className="relative p-5" style={paperStyle}>
-              <div className="eyebrow" style={{ color: "var(--champ)" }}>
-                Souvenirs joints
-              </div>
-              {media.length > 0 ? (
-                <div className="mt-3 grid grid-cols-2 gap-2.5">
-                  {media.map((m) => (
-                    <div
-                      key={m.id}
-                      className="overflow-hidden rounded-[10px] border shadow-soft"
-                      style={{ aspectRatio: "1", borderColor: "rgba(79,97,82,.18)", background: "var(--surface-2)" }}
-                    >
-                      {m.kind === "image" && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={m.url} alt="" className="h-full w-full object-cover" />
-                      )}
-                      {m.kind === "video" && <video src={m.url} controls playsInline className="h-full w-full object-cover" />}
-                      {m.kind === "audio" && (
-                        <div className="flex h-full items-center justify-center p-1">
-                          <audio src={m.url} controls className="w-full" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+            {isCoverPage ? (
+              <>
+                {/* Page de gauche : titre + mot d'intro de la couverture */}
+                <div
+                  className="relative flex flex-col justify-center border-b p-5 text-center sm:border-b-0 sm:border-r"
+                  style={{ ...paperStyle, borderColor: "rgba(79,97,82,.14)" }}
+                >
+                  <div className="eyebrow" style={{ color: "var(--sage)" }}>
+                    Couverture
+                  </div>
+                  <h2 className="display mt-1 text-[24px]">{cover.title || coupleNames}</h2>
+                  {cover.message && (
+                    <p className="mt-3" style={{ fontFamily: "var(--font-hand)", fontSize: "24px", color: "var(--ink)" }}>
+                      {cover.message}
+                    </p>
+                  )}
+                  <StaticStickers stickers={cover.stickers} />
                 </div>
-              ) : (
-                <p className="mt-3 text-[13.5px] italic" style={{ color: "var(--ink-faint)" }}>
-                  {isBlank ? "Rien pour l'instant." : "Aucune photo, vidéo ou message vocal joint."}
-                </p>
-              )}
-            </div>
+
+                {/* Page de droite : photos de couverture */}
+                <div className="relative p-5" style={paperStyle}>
+                  <div className="eyebrow" style={{ color: "var(--champ)" }}>
+                    En photos
+                  </div>
+                  {cover.photos.length > 0 ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2.5">
+                      {cover.photos.map((p) => (
+                        <div
+                          key={p.id}
+                          className="overflow-hidden rounded-[10px] border shadow-soft"
+                          style={{ aspectRatio: "1", borderColor: "rgba(79,97,82,.18)", background: "var(--surface-2)" }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={p.url} alt="" className="h-full w-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-[13.5px] italic" style={{ color: "var(--ink-faint)" }}>
+                      Aucune photo de couverture pour l&apos;instant.
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : guestPage ? (
+              <>
+                {/* Page de gauche : le mot de l'invité */}
+                <div
+                  className="relative border-b p-5 sm:border-b-0 sm:border-r"
+                  style={{ ...paperStyle, borderColor: "rgba(79,97,82,.14)" }}
+                >
+                  <div className="eyebrow" style={{ color: "var(--sage)" }}>
+                    {formatDate(guestPage.entry.updated_at)}
+                  </div>
+                  <div className="display mt-1 text-[22px]">{guestPage.guest.name}</div>
+
+                  <div className="relative mt-4" style={{ minHeight: 160 }}>
+                    {guestPage.entry.message ? (
+                      <p
+                        className="whitespace-pre-wrap"
+                        style={{ fontFamily: "var(--font-hand)", fontSize: "27px", lineHeight: 1.3, color: "var(--ink)" }}
+                      >
+                        {guestPage.entry.message}
+                      </p>
+                    ) : (
+                      <p className="italic" style={{ fontFamily: "var(--font-hand)", fontSize: "22px", color: "var(--ink-faint)" }}>
+                        Cette page n&apos;a pas encore été écrite…
+                      </p>
+                    )}
+                    <StaticStickers stickers={guestPage.entry.stickers} />
+                  </div>
+                </div>
+
+                {/* Page de droite : les souvenirs joints */}
+                <div className="relative p-5" style={paperStyle}>
+                  <div className="eyebrow" style={{ color: "var(--champ)" }}>
+                    Souvenirs joints
+                  </div>
+                  {guestPage.media.length > 0 ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2.5">
+                      {guestPage.media.map((m) => (
+                        <div
+                          key={m.id}
+                          className="overflow-hidden rounded-[10px] border shadow-soft"
+                          style={{ aspectRatio: "1", borderColor: "rgba(79,97,82,.18)", background: "var(--surface-2)" }}
+                        >
+                          {m.kind === "image" && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={m.url} alt="" className="h-full w-full object-cover" />
+                          )}
+                          {m.kind === "video" && (
+                            <video src={m.url} controls playsInline className="h-full w-full object-cover" />
+                          )}
+                          {m.kind === "audio" && (
+                            <div className="flex h-full items-center justify-center p-1">
+                              <audio src={m.url} controls className="w-full" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-[13.5px] italic" style={{ color: "var(--ink-faint)" }}>
+                      Aucune photo, vidéo ou message vocal joint.
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
 
