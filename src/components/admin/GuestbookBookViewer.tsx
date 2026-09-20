@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import type { GuestPage } from "@/lib/guestbookAdmin";
 import type { GuestbookCoverData } from "@/lib/guestbookAdmin";
 import StaticStickers from "@/components/guestbook/StaticStickers";
@@ -22,10 +23,29 @@ export default function GuestbookBookViewer({
   cover: GuestbookCoverData;
   pages: GuestPage[];
 }) {
-  const sorted = useMemo(() => [...pages].sort((a, b) => a.guest.name.localeCompare(b.guest.name, "fr")), [pages]);
+  const [localPages, setLocalPages] = useState(pages);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const sorted = useMemo(
+    () => [...localPages].sort((a, b) => a.guest.name.localeCompare(b.guest.name, "fr")),
+    [localPages]
+  );
   const hasCover = !!(cover.title || cover.message || cover.stickers.length > 0 || cover.photos.length > 0);
   const count = (hasCover ? 1 : 0) + sorted.length;
   const [index, setIndex] = useState(0);
+
+  async function removeGuest(guestId: string) {
+    if (!confirm("Supprimer définitivement cette page (et ses médias) ?")) return;
+    setDeleting(guestId);
+    const supabase = createClient();
+    const { error } = await supabase.from("guests").delete().eq("id", guestId);
+    setDeleting(null);
+    if (error) {
+      alert("Erreur : " + error.message);
+      return;
+    }
+    setLocalPages((prev) => prev.filter((p) => p.guest.id !== guestId));
+    setIndex((i) => Math.max(0, i - 1));
+  }
 
   if (count === 0) {
     return (
@@ -38,7 +58,7 @@ export default function GuestbookBookViewer({
         </div>
         <p className="font-semibold">Le livre d&apos;or est encore vide</p>
         <p className="mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
-          Ajoute une couverture ci-dessous, et les pages de vos invités apparaîtront ici au fur et à mesure.
+          Ajoute une couverture ci-dessus, et les pages de vos invités apparaîtront ici au fur et à mesure.
         </p>
       </div>
     );
@@ -136,10 +156,23 @@ export default function GuestbookBookViewer({
                   className="relative border-b p-5 sm:border-b-0 sm:border-r"
                   style={{ ...paperStyle, borderColor: "rgba(79,97,82,.14)" }}
                 >
-                  <div className="eyebrow" style={{ color: "var(--sage)" }}>
-                    {formatDate(guestPage.entry.updated_at)}
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="eyebrow" style={{ color: "var(--sage)" }}>
+                        {formatDate(guestPage.entry.updated_at)}
+                      </div>
+                      <div className="display mt-1 text-[22px]">{guestPage.guest.name}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeGuest(guestPage.guest.id)}
+                      disabled={deleting === guestPage.guest.id}
+                      className="flex-none text-[12px] font-semibold"
+                      style={{ color: "#c0522d", cursor: "pointer" }}
+                    >
+                      {deleting === guestPage.guest.id ? "…" : "Supprimer"}
+                    </button>
                   </div>
-                  <div className="display mt-1 text-[22px]">{guestPage.guest.name}</div>
 
                   <div className="relative mt-4" style={{ minHeight: 160 }}>
                     {guestPage.entry.message ? (

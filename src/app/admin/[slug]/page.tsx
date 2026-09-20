@@ -13,7 +13,7 @@ import ChallengesManager from "@/components/admin/ChallengesManager";
 import ShareLinksManager from "@/components/admin/ShareLinksManager";
 import GuestbookToggle from "@/components/admin/GuestbookToggle";
 import GuestbookCoverEditor from "@/components/admin/GuestbookCoverEditor";
-import GuestbookManager from "@/components/admin/GuestbookManager";
+import GuestbookBookViewer from "@/components/admin/GuestbookBookViewer";
 import DestinationPollManager from "@/components/admin/DestinationPollManager";
 
 export const dynamic = "force-dynamic";
@@ -177,8 +177,8 @@ export default async function AdminEventPage({
           weddingPhotos={weddingPhotos}
         />
       </div>
-      <div className="mt-4">
-        <GuestbookManager initial={guestPages} />
+      <div className="mt-6">
+        <GuestbookBookViewer coupleNames={event.couple_names} cover={cover} pages={guestPages} />
       </div>
 
       {/* Vote destination */}

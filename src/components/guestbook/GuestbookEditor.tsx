@@ -59,25 +59,41 @@ export default function GuestbookEditor({
   return (
     <div>
       <p className="mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
-        Bonjour {initial.guestName} ✦ ta page est enregistrée automatiquement.
+        Ta page est enregistrée automatiquement pendant que tu écris.
       </p>
 
+      {/* Reliure : la page de l'invité, comme dans un vrai livre */}
       <div
-        className="relative mt-4 overflow-hidden rounded-card border p-4"
+        className="mt-4 rounded-[22px] p-2.5"
         style={{
-          borderColor: "var(--line)",
-          minHeight: 260,
-          background: "linear-gradient(160deg, var(--sage-tint), var(--champ-tint))",
+          background: "linear-gradient(155deg, var(--sage-strong), var(--sage))",
+          boxShadow: "0 18px 40px -18px rgba(20,28,20,.45), 0 2px 0 rgba(255,255,255,.08) inset",
         }}
       >
-        <textarea
-          value={message ?? ""}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Écris un petit mot pour les mariés…"
-          className="relative h-full min-h-[220px] w-full resize-none bg-transparent outline-none"
-          style={{ fontFamily: "var(--font-hand)", fontSize: "28px", lineHeight: 1.3, color: "var(--ink)" }}
-        />
-        <StickerCanvas stickers={stickers} onChange={setStickers} />
+        <div
+          className="relative overflow-hidden rounded-[14px] p-5"
+          style={{
+            background: "repeating-linear-gradient(#fdfaf1, #fdfaf1 33px, rgba(79,97,82,.08) 34px)",
+            minHeight: 300,
+          }}
+        >
+          {/* Ombre de reliure côté gauche */}
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 w-6"
+            style={{ background: "linear-gradient(90deg, rgba(0,0,0,.12), rgba(0,0,0,0))" }}
+          />
+          <div className="eyebrow" style={{ color: "var(--sage)" }}>
+            {initial.guestName}
+          </div>
+          <textarea
+            value={message ?? ""}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Écris un petit mot pour les mariés…"
+            className="relative mt-2 h-full min-h-[220px] w-full resize-none bg-transparent outline-none"
+            style={{ fontFamily: "var(--font-hand)", fontSize: "28px", lineHeight: 1.3, color: "var(--ink)" }}
+          />
+          <StickerCanvas stickers={stickers} onChange={setStickers} />
+        </div>
       </div>
 
       <StickerPalette onPick={addSticker} />

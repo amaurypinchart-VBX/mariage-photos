@@ -21,19 +21,20 @@ export default function GuestbookCover({
 }) {
   return (
     <div
-      className="relative overflow-hidden rounded-card border p-6 text-center"
+      className="relative overflow-hidden rounded-[22px] p-7 text-center"
       style={{
-        borderColor: "var(--line)",
-        background: "linear-gradient(160deg, var(--sage-tint), var(--champ-tint))",
-        boxShadow: "0 18px 40px -22px rgba(20,28,20,.35)",
+        background: "linear-gradient(155deg, var(--sage-strong), var(--sage))",
+        boxShadow: "0 18px 40px -18px rgba(20,28,20,.5), 0 2px 0 rgba(255,255,255,.08) inset",
       }}
     >
-      <div className="eyebrow" style={{ color: "var(--sage)" }}>
+      <div className="eyebrow" style={{ color: "rgba(253,250,241,.65)" }}>
         Livre d&apos;or
       </div>
-      <h1 className="display mt-1 text-[28px] leading-[1.1]">{title || coupleNames}</h1>
+      <h1 className="display mt-1 text-[28px] leading-[1.1]" style={{ color: "#fdfaf1" }}>
+        {title || coupleNames}
+      </h1>
       {message && (
-        <p className="mt-2" style={{ fontFamily: "var(--font-hand)", fontSize: "22px", color: "var(--ink)" }}>
+        <p className="mt-2" style={{ fontFamily: "var(--font-hand)", fontSize: "22px", color: "rgba(253,250,241,.92)" }}>
           {message}
         </p>
       )}
