@@ -106,6 +106,7 @@ export type GuestbookMedia = {
 export type GuestbookCoverPhoto = {
   id: string;
   event_id: string;
+  bucket: string;
   storage_path: string;
   mime_type: string | null;
   size_bytes: number | null;

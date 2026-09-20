@@ -9,12 +9,15 @@ export default function GuestbookCover({
   message,
   stickers,
   photos,
+  stickerOverlay,
 }: {
   coupleNames: string;
   title: string | null;
   message: string | null;
   stickers: StickerPlacement[];
   photos: { id: string; url: string }[];
+  /** Remplace le rendu statique des stickers (ex. par un StickerCanvas interactif dans l'éditeur admin). */
+  stickerOverlay?: React.ReactNode;
 }) {
   return (
     <div
@@ -56,7 +59,7 @@ export default function GuestbookCover({
         </div>
       )}
 
-      <StaticStickers stickers={stickers} />
+      {stickerOverlay ?? <StaticStickers stickers={stickers} />}
     </div>
   );
 }

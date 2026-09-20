@@ -129,6 +129,7 @@ create index if not exists idx_guestbook_media_entry on public.guestbook_media(e
 create table if not exists public.guestbook_cover_photos (
   id           uuid primary key default gen_random_uuid(),
   event_id     uuid not null references public.events(id) on delete cascade,
+  bucket       text not null default 'guestbook-media', -- 'guestbook-media' (upload) ou 'wedding-media' (photo déjà déposée)
   storage_path text not null,
   mime_type    text,
   size_bytes   bigint,
@@ -136,6 +137,7 @@ create table if not exists public.guestbook_cover_photos (
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_cover_photos_event on public.guestbook_cover_photos(event_id, sort_order);
+alter table public.guestbook_cover_photos add column if not exists bucket text not null default 'guestbook-media';
 
 -- ---------- Vote destination lune de miel (public, mis à jour en direct) ----------
 create table if not exists public.destination_options (

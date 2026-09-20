@@ -3,6 +3,7 @@
 import imageCompression from "browser-image-compression";
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import GuestbookCover from "@/components/guestbook/GuestbookCover";
 import StickerCanvas from "@/components/guestbook/StickerCanvas";
 import StickerPalette from "@/components/guestbook/StickerPalette";
 import type { StickerPlacement } from "@/lib/types";
@@ -14,19 +15,24 @@ function uid() {
 }
 
 export type CoverPhoto = { id: string; url: string };
+export type WeddingPhoto = { id: string; storagePath: string; url: string };
 
 export default function GuestbookCoverEditor({
   eventId,
+  coupleNames,
   initialTitle,
   initialMessage,
   initialStickers,
   initialPhotos,
+  weddingPhotos,
 }: {
   eventId: string;
+  coupleNames: string;
   initialTitle: string | null;
   initialMessage: string | null;
   initialStickers: StickerPlacement[];
   initialPhotos: CoverPhoto[];
+  weddingPhotos: WeddingPhoto[];
 }) {
   const [title, setTitle] = useState(initialTitle ?? "");
   const [message, setMessage] = useState(initialMessage ?? "");
@@ -34,6 +40,7 @@ export default function GuestbookCoverEditor({
   const [photos, setPhotos] = useState<CoverPhoto[]>(initialPhotos);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,6 +113,7 @@ export default function GuestbookCoverEditor({
           .from("guestbook_cover_photos")
           .insert({
             event_id: eventId,
+            bucket: BUCKET,
             storage_path: path,
             mime_type: mimeType,
             size_bytes: blob.size,
@@ -124,6 +132,27 @@ export default function GuestbookCoverEditor({
       }
     }
     setUploading(false);
+  }
+
+  async function pickFromWedding(photo: WeddingPhoto) {
+    setError(null);
+    const supabase = createClient();
+    const { data: created, error: insErr } = await supabase
+      .from("guestbook_cover_photos")
+      .insert({
+        event_id: eventId,
+        bucket: "wedding-media",
+        storage_path: photo.storagePath,
+        sort_order: photos.length,
+      })
+      .select("id")
+      .single();
+    if (insErr || !created) {
+      setError(insErr?.message ?? "Erreur.");
+      return;
+    }
+    setPhotos((prev) => [...prev, { id: (created as { id: string }).id, url: photo.url }]);
+    setPickerOpen(false);
   }
 
   async function removePhoto(id: string) {
@@ -159,19 +188,17 @@ export default function GuestbookCoverEditor({
         </div>
       </div>
 
-      <div
-        className="relative mt-4 overflow-hidden rounded-card border p-4"
-        style={{
-          borderColor: "var(--line)",
-          minHeight: 140,
-          background: "linear-gradient(160deg, var(--sage-tint), var(--champ-tint))",
-        }}
-      >
-        <p className="text-[13px] font-semibold" style={{ color: "var(--ink-soft)" }}>
-          Aperçu — dépose les stickers où tu veux
-        </p>
-        <StickerCanvas stickers={stickers} onChange={updateStickers} />
-      </div>
+      <p className="mb-1.5 mt-4 text-xs font-semibold" style={{ color: "var(--ink-soft)" }}>
+        Aperçu — c&apos;est exactement ce que verront tes invités. Dépose les stickers où tu veux.
+      </p>
+      <GuestbookCover
+        coupleNames={coupleNames}
+        title={title}
+        message={message}
+        stickers={stickers}
+        photos={photos}
+        stickerOverlay={<StickerCanvas stickers={stickers} onChange={updateStickers} />}
+      />
       <StickerPalette onPick={addSticker} />
 
       <p className="mt-2 text-[12px]" style={{ color: "var(--ink-faint)" }}>
@@ -205,15 +232,22 @@ export default function GuestbookCoverEditor({
             ))}
           </div>
         )}
-        <button
-          type="button"
-          className="chip"
-          style={{ cursor: "pointer" }}
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-        >
-          {uploading ? "Envoi…" : "🖼️ Ajouter une photo"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="chip"
+            style={{ cursor: "pointer" }}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? "Envoi…" : "🖼️ Importer une photo"}
+          </button>
+          {weddingPhotos.length > 0 && (
+            <button type="button" className="chip" style={{ cursor: "pointer" }} onClick={() => setPickerOpen(true)}>
+              📷 Depuis la galerie du mariage
+            </button>
+          )}
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -231,6 +265,36 @@ export default function GuestbookCoverEditor({
           </p>
         )}
       </div>
+
+      {pickerOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,.6)" }}
+          onClick={() => setPickerOpen(false)}
+        >
+          <div
+            className="max-h-[70vh] w-full max-w-app overflow-y-auto rounded-t-[20px] p-4"
+            style={{ background: "var(--bg)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="mb-3 text-[15px] font-semibold">Choisir dans la galerie du mariage</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {weddingPhotos.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => pickFromWedding(p)}
+                  className="overflow-hidden rounded-[10px] border"
+                  style={{ aspectRatio: "1", borderColor: "var(--line)" }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.url} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

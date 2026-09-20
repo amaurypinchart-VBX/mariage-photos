@@ -111,24 +111,34 @@ export async function getGuestbookPages(supabase: ServerSupabase, eventId: strin
 export async function getGuestbookCover(supabase: ServerSupabase, event: WeddingEvent): Promise<GuestbookCoverData> {
   const { data: photosData } = await supabase
     .from("guestbook_cover_photos")
-    .select("id, event_id, storage_path, mime_type, size_bytes, sort_order, created_at")
+    .select("id, event_id, bucket, storage_path, mime_type, size_bytes, sort_order, created_at")
     .eq("event_id", event.id)
     .order("sort_order", { ascending: true });
   const photoRows = (photosData as GuestbookCoverPhoto[]) ?? [];
 
   let photos: { id: string; url: string }[] = [];
   if (photoRows.length > 0) {
-    const { data: signed } = await supabase.storage
-      .from("guestbook-media")
-      .createSignedUrls(
-        photoRows.map((p) => p.storage_path),
-        SIGNED_URL_TTL
-      );
-    const urlByPath: Record<string, string> = {};
-    (signed ?? []).forEach((s) => {
-      if (s.signedUrl && s.path) urlByPath[s.path] = s.signedUrl;
+    const byBucket = new Map<string, GuestbookCoverPhoto[]>();
+    photoRows.forEach((p) => {
+      const list = byBucket.get(p.bucket) ?? [];
+      list.push(p);
+      byBucket.set(p.bucket, list);
     });
-    photos = photoRows.filter((p) => urlByPath[p.storage_path]).map((p) => ({ id: p.id, url: urlByPath[p.storage_path] }));
+    const urlByKey: Record<string, string> = {};
+    for (const [bucket, items] of byBucket) {
+      const { data: signed } = await supabase.storage
+        .from(bucket)
+        .createSignedUrls(
+          items.map((p) => p.storage_path),
+          SIGNED_URL_TTL
+        );
+      (signed ?? []).forEach((s) => {
+        if (s.signedUrl && s.path) urlByKey[`${bucket}:${s.path}`] = s.signedUrl;
+      });
+    }
+    photos = photoRows
+      .filter((p) => urlByKey[`${p.bucket}:${p.storage_path}`])
+      .map((p) => ({ id: p.id, url: urlByKey[`${p.bucket}:${p.storage_path}`] }));
   }
 
   return {

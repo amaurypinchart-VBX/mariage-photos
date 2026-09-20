@@ -138,7 +138,12 @@ export async function getMyGuestbookPage(
     });
   }
 
+  // La galerie proposée dans le livre d'or inclut toujours les photos
+  // partagées "avec Tout" par les mariés, et en plus celles du lien précis
+  // par lequel l'invité est arrivé (s'il y en a un) — pas besoin d'un token
+  // pour retrouver les photos publiques du mariage.
   let albumPhotos: GuestbookPageData["albumPhotos"] = [];
+  let shareLinkId: string | null = null;
   if (albumToken) {
     const { data: linkData } = await admin
       .from("share_links")
@@ -147,32 +152,33 @@ export async function getMyGuestbookPage(
       .eq("token", albumToken)
       .eq("is_active", true)
       .maybeSingle();
-    const link = linkData as { id: string } | null;
-    if (link) {
-      const { data: uploadsData } = await admin
-        .from("guest_uploads")
-        .select("id, storage_path, kind")
-        .eq("event_id", event.id)
-        .eq("kind", "image")
-        .or(`visible_to_all.eq.true,share_link_id.eq.${link.id}`)
-        .order("created_at", { ascending: false });
-      const uploads = (uploadsData ?? []) as { id: string; storage_path: string; kind: MediaKind }[];
-      if (uploads.length > 0) {
-        const { data: signed } = await admin.storage
-          .from("wedding-media")
-          .createSignedUrls(
-            uploads.map((u) => u.storage_path),
-            SIGNED_URL_TTL
-          );
-        const urlByPath: Record<string, string> = {};
-        (signed ?? []).forEach((s) => {
-          if (s.signedUrl && s.path) urlByPath[s.path] = s.signedUrl;
-        });
-        albumPhotos = uploads
-          .filter((u) => urlByPath[u.storage_path])
-          .map((u) => ({ id: u.id, url: urlByPath[u.storage_path] }));
-      }
-    }
+    shareLinkId = (linkData as { id: string } | null)?.id ?? null;
+  }
+
+  const visibilityFilter = shareLinkId
+    ? `visible_to_all.eq.true,share_link_id.eq.${shareLinkId}`
+    : "visible_to_all.eq.true";
+
+  const { data: uploadsData } = await admin
+    .from("guest_uploads")
+    .select("id, storage_path, kind")
+    .eq("event_id", event.id)
+    .eq("kind", "image")
+    .or(visibilityFilter)
+    .order("created_at", { ascending: false });
+  const uploads = (uploadsData ?? []) as { id: string; storage_path: string; kind: MediaKind }[];
+  if (uploads.length > 0) {
+    const { data: signed } = await admin.storage
+      .from("wedding-media")
+      .createSignedUrls(
+        uploads.map((u) => u.storage_path),
+        SIGNED_URL_TTL
+      );
+    const urlByPath: Record<string, string> = {};
+    (signed ?? []).forEach((s) => {
+      if (s.signedUrl && s.path) urlByPath[s.path] = s.signedUrl;
+    });
+    albumPhotos = uploads.filter((u) => urlByPath[u.storage_path]).map((u) => ({ id: u.id, url: urlByPath[u.storage_path] }));
   }
 
   return {

@@ -91,6 +91,10 @@ export default async function AdminEventPage({
     });
   }
 
+  const weddingPhotos = uploads
+    .filter((u) => u.kind === "image" && urlByPath[u.storage_path])
+    .map((u) => ({ id: u.id, storagePath: u.storage_path, url: urlByPath[u.storage_path] }));
+
   const guestUrl = `${SITE_URL}/e/${event.slug}`;
   const contributors = new Set(
     uploads.map((u) => (u.guest_name || "").trim().toLowerCase()).filter(Boolean)
@@ -165,10 +169,12 @@ export default async function AdminEventPage({
       <div className="mt-4">
         <GuestbookCoverEditor
           eventId={event.id}
+          coupleNames={event.couple_names}
           initialTitle={cover.title}
           initialMessage={cover.message}
           initialStickers={cover.stickers}
           initialPhotos={cover.photos}
+          weddingPhotos={weddingPhotos}
         />
       </div>
       <div className="mt-4">
