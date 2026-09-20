@@ -79,6 +79,67 @@ create index if not exists idx_uploads_event on public.guest_uploads(event_id, c
 -- Colonnes ajoutées après la v1 : sans effet si la table existe déjà avec elles.
 alter table public.guest_uploads add column if not exists share_link_id uuid references public.share_links(id) on delete set null;
 alter table public.guest_uploads add column if not exists visible_to_all boolean not null default false;
+alter table public.events add column if not exists guestbook_active boolean not null default false;
+
+-- ---------- Livre d'or ----------
+-- Un invité identifié par prénom + code PIN (haché côté Next.js avec scrypt),
+-- sans compte email. Une ligne = un invité pour un mariage donné.
+create table if not exists public.guests (
+  id         uuid primary key default gen_random_uuid(),
+  event_id   uuid not null references public.events(id) on delete cascade,
+  name       text not null,
+  name_key   text not null,                 -- lower(trim(name)), pour l'unicité
+  pin_hash   text not null,                 -- format "salt:hash", calculé côté serveur
+  created_at timestamptz not null default now(),
+  unique (event_id, name_key)
+);
+
+-- La page (carte) d'un invité : message + stickers décoratifs positionnés.
+create table if not exists public.guestbook_entries (
+  id         uuid primary key default gen_random_uuid(),
+  event_id   uuid not null references public.events(id) on delete cascade,
+  guest_id   uuid not null unique references public.guests(id) on delete cascade,
+  message    text,
+  stickers   jsonb not null default '[]'::jsonb,  -- [{id,emoji,xPct,yPct,scale,rotationDeg}]
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Médias attachés à une page (photo/vidéo/message vocal). `bucket` vaut soit
+-- 'guestbook-media' (upload direct), soit 'wedding-media' (référence à une
+-- photo déjà partagée avec l'invité — pas de duplication de fichier).
+create table if not exists public.guestbook_media (
+  id           uuid primary key default gen_random_uuid(),
+  entry_id     uuid not null references public.guestbook_entries(id) on delete cascade,
+  bucket       text not null,
+  storage_path text not null,
+  kind         text not null check (kind in ('image','video','audio')),
+  mime_type    text,
+  size_bytes   bigint,
+  created_at   timestamptz not null default now()
+);
+create index if not exists idx_guestbook_media_entry on public.guestbook_media(entry_id);
+
+-- ---------- Vote destination lune de miel (public, mis à jour en direct) ----------
+create table if not exists public.destination_options (
+  id         uuid primary key default gen_random_uuid(),
+  event_id   uuid not null references public.events(id) on delete cascade,
+  label      text not null,
+  label_key  text not null,                 -- lower(trim(label)), anti-doublons
+  created_by uuid references public.guests(id) on delete set null,
+  created_at timestamptz not null default now(),
+  unique (event_id, label_key)
+);
+
+create table if not exists public.destination_votes (
+  id         uuid primary key default gen_random_uuid(),
+  event_id   uuid not null references public.events(id) on delete cascade,
+  option_id  uuid not null references public.destination_options(id) on delete cascade,
+  guest_id   uuid not null references public.guests(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (event_id, guest_id)               -- un seul vote actif par invité (remplaçable)
+);
+create index if not exists idx_destination_votes_option on public.destination_votes(option_id);
 
 -- ============================================================================
 --  2. FONCTION D'AIDE — est-ce que l'utilisateur connecté administre ce mariage ?
@@ -105,6 +166,11 @@ alter table public.event_admins     enable row level security;
 alter table public.photo_challenges enable row level security;
 alter table public.guest_uploads    enable row level security;
 alter table public.share_links      enable row level security;
+alter table public.guests               enable row level security;
+alter table public.guestbook_entries    enable row level security;
+alter table public.guestbook_media      enable row level security;
+alter table public.destination_options  enable row level security;
+alter table public.destination_votes    enable row level security;
 
 -- ---------- events ----------
 -- Lecture : événement actif visible par tous (les invités doivent lire le nom/date),
@@ -185,6 +251,85 @@ create policy "admins manage share links" on public.share_links
   using (public.is_event_admin(event_id))
   with check (public.is_event_admin(event_id));
 
+-- ---------- guests / guestbook_entries / guestbook_media ----------
+-- Aucune policy anon : ces tables contiennent le hash du PIN et les pages
+-- privées de chaque invité. Tout accès invité (créer/retrouver sa page,
+-- sauvegarder son message, ajouter un média) passe par les Server Actions
+-- Next.js qui utilisent la clé service_role après avoir validé le guest_id
+-- (même principe que les tokens de share_links). Les mariés, eux, lisent/
+-- écrivent tout directement via is_event_admin().
+drop policy if exists "admins manage guests" on public.guests;
+create policy "admins manage guests" on public.guests
+  for all to authenticated
+  using (public.is_event_admin(event_id))
+  with check (public.is_event_admin(event_id));
+
+drop policy if exists "admins manage guestbook entries" on public.guestbook_entries;
+create policy "admins manage guestbook entries" on public.guestbook_entries
+  for all to authenticated
+  using (public.is_event_admin(event_id))
+  with check (public.is_event_admin(event_id));
+
+drop policy if exists "admins manage guestbook media" on public.guestbook_media;
+create policy "admins manage guestbook media" on public.guestbook_media
+  for all to authenticated
+  using (
+    exists (
+      select 1 from public.guestbook_entries e
+      where e.id = entry_id and public.is_event_admin(e.event_id)
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.guestbook_entries e
+      where e.id = entry_id and public.is_event_admin(e.event_id)
+    )
+  );
+
+-- ---------- destination_options / destination_votes ----------
+-- Public et lisible par tous (nécessaire pour l'affichage + Supabase Realtime).
+-- Les écritures passent par une Server Action qui valide le guest_id, mais la
+-- lecture directe reste ouverte comme pour photo_challenges.
+drop policy if exists "destinations readable" on public.destination_options;
+create policy "destinations readable" on public.destination_options
+  for select to anon, authenticated
+  using (
+    public.is_event_admin(event_id)
+    or exists (select 1 from public.events e where e.id = event_id and e.is_active)
+  );
+
+drop policy if exists "admins manage destinations" on public.destination_options;
+create policy "admins manage destinations" on public.destination_options
+  for all to authenticated
+  using (public.is_event_admin(event_id))
+  with check (public.is_event_admin(event_id));
+
+drop policy if exists "destination votes readable" on public.destination_votes;
+create policy "destination votes readable" on public.destination_votes
+  for select to anon, authenticated
+  using (
+    public.is_event_admin(event_id)
+    or exists (select 1 from public.events e where e.id = event_id and e.is_active)
+  );
+
+drop policy if exists "admins manage destination votes" on public.destination_votes;
+create policy "admins manage destination votes" on public.destination_votes
+  for all to authenticated
+  using (public.is_event_admin(event_id))
+  with check (public.is_event_admin(event_id));
+
+-- Realtime : pousse les changements de vote/options en direct à tous les invités.
+do $$
+begin
+  alter publication supabase_realtime add table public.destination_options;
+exception when others then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table public.destination_votes;
+exception when others then null;
+end $$;
+
 -- ============================================================================
 --  4. STOCKAGE (bucket privé wedding-media)
 -- ============================================================================
@@ -226,6 +371,51 @@ create policy "admins delete media" on storage.objects
   for delete to authenticated
   using (
     bucket_id = 'wedding-media'
+    and public.is_event_admin( (split_part(name, '/', 1))::uuid )
+  );
+
+-- ============================================================================
+--  5. STOCKAGE (bucket privé guestbook-media)
+-- ============================================================================
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'guestbook-media', 'guestbook-media', false,
+  104857600,  -- 100 Mo par fichier
+  array['image/jpeg','image/png','image/webp','image/heic','image/heif','image/gif',
+        'video/mp4','video/quicktime','video/webm',
+        'audio/webm','audio/mp4','audio/mpeg','audio/ogg','audio/wav']
+)
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+-- Dépôt de médias par les invités (sans compte), dans le dossier d'un événement actif.
+drop policy if exists "guests upload guestbook media" on storage.objects;
+create policy "guests upload guestbook media" on storage.objects
+  for insert to anon, authenticated
+  with check (
+    bucket_id = 'guestbook-media'
+    and exists (
+      select 1 from public.events e
+      where e.id::text = split_part(name, '/', 1) and e.is_active
+    )
+  );
+
+-- Lecture/suppression : admins de l'événement uniquement (les invités relisent
+-- leurs propres médias via une URL signée générée par une Server Action).
+drop policy if exists "admins read guestbook media" on storage.objects;
+create policy "admins read guestbook media" on storage.objects
+  for select to authenticated
+  using (
+    bucket_id = 'guestbook-media'
+    and public.is_event_admin( (split_part(name, '/', 1))::uuid )
+  );
+
+drop policy if exists "admins delete guestbook media" on storage.objects;
+create policy "admins delete guestbook media" on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'guestbook-media'
     and public.is_event_admin( (split_part(name, '/', 1))::uuid )
   );
 

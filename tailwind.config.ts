@@ -23,6 +23,7 @@ const config: Config = {
       fontFamily: {
         display: ["var(--font-display)", "Times New Roman", "serif"],
         sans: ["var(--font-body)", "system-ui", "sans-serif"],
+        hand: ["var(--font-hand)", "cursive"],
       },
       borderRadius: {
         card: "20px",

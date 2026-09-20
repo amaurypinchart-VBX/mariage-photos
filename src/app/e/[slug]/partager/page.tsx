@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getEventBySlug } from "@/lib/events";
 import { notFound } from "next/navigation";
 import BrandBar from "@/components/BrandBar";
@@ -26,6 +27,23 @@ export default async function SharePage({
             directement dans l&apos;album privé des mariés.
           </p>
         </div>
+
+        {event.guestbook_active && (
+          <Link
+            href={`/e/${event.slug}/livre-dor`}
+            className="card mb-4 flex items-center gap-3 p-4"
+            style={{ background: "var(--sage-tint)" }}
+          >
+            <span className="text-[22px]">💌</span>
+            <span>
+              <span className="block text-[14.5px] font-semibold">Signer le livre d&apos;or</span>
+              <span className="block text-[12.5px]" style={{ color: "var(--ink-soft)" }}>
+                Laisse un petit mot, une photo, une voix pour les mariés.
+              </span>
+            </span>
+          </Link>
+        )}
+
         <Uploader eventId={event.id} slug={event.slug} />
       </div>
     </>

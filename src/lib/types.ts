@@ -16,6 +16,7 @@ export type WeddingEvent = {
   color_accent: string | null;
   game_active: boolean;
   gallery_public: boolean;
+  guestbook_active: boolean;
   is_active: boolean;
   created_at: string;
 };
@@ -51,5 +52,67 @@ export type GuestUpload = {
   challenge_id: string | null;
   share_link_id: string | null;
   visible_to_all: boolean;
+  created_at: string;
+};
+
+// ---------- Livre d'or ----------
+
+export type Guest = {
+  id: string;
+  event_id: string;
+  name: string;
+  name_key: string;
+  pin_hash: string;
+  created_at: string;
+};
+
+export type StickerPlacement = {
+  id: string;
+  emoji: string;
+  xPct: number; // 0-100, centre du sticker
+  yPct: number; // 0-100
+  scale: number; // 1 = taille de base
+  rotationDeg: number;
+};
+
+export type GuestbookEntry = {
+  id: string;
+  event_id: string;
+  guest_id: string;
+  message: string | null;
+  stickers: StickerPlacement[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type GuestbookMediaKind = "image" | "video" | "audio";
+
+export type GuestbookMedia = {
+  id: string;
+  entry_id: string;
+  bucket: string;
+  storage_path: string;
+  kind: GuestbookMediaKind;
+  mime_type: string | null;
+  size_bytes: number | null;
+  created_at: string;
+};
+
+// ---------- Vote destination lune de miel ----------
+
+export type DestinationOption = {
+  id: string;
+  event_id: string;
+  label: string;
+  label_key: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type DestinationVote = {
+  id: string;
+  event_id: string;
+  option_id: string;
+  guest_id: string;
   created_at: string;
 };

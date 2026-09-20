@@ -26,6 +26,7 @@
 
   --font-display: "Marcellus";
   --font-body: "Figtree";
+  --font-hand: "Caveat", cursive;
 }
 
 @media (prefers-color-scheme: dark) {

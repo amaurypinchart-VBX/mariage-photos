@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getEventBySlug } from "@/lib/events";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -73,6 +74,23 @@ export default async function AlbumPage({
           <div className="eyebrow mb-1.5">Photos partagées avec : {link.label}</div>
           <h1 className="display text-[28px] leading-[1.06]">{event.couple_names}</h1>
         </div>
+
+        {event.guestbook_active && (
+          <Link
+            href={`/e/${event.slug}/livre-dor?album=${link.token}`}
+            className="card mb-4 flex items-center gap-3 p-4"
+            style={{ background: "var(--sage-tint)" }}
+          >
+            <span className="text-[22px]">💌</span>
+            <span>
+              <span className="block text-[14.5px] font-semibold">Signer le livre d&apos;or</span>
+              <span className="block text-[12.5px]" style={{ color: "var(--ink-soft)" }}>
+                Laisse un petit mot, une photo, une voix pour les mariés.
+              </span>
+            </span>
+          </Link>
+        )}
+
         <GuestAlbum items={items} />
       </div>
     </>
