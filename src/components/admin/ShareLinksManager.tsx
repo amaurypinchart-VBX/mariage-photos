@@ -38,8 +38,17 @@ export default function ShareLinksManager({
 
   async function toggleActive(link: ShareLink) {
     const supabase = createClient();
+    // Mise à jour optimiste, annulée si l'écriture échoue réellement — sinon
+    // l'admin peut voir "Actif" dans l'interface alors que la base de
+    // données n'a jamais changé (et le lien reste cassé pour les invités
+    // sans que personne ne le sache).
     setItems((prev) => prev.map((x) => (x.id === link.id ? { ...x, is_active: !x.is_active } : x)));
-    await supabase.from("share_links").update({ is_active: !link.is_active }).eq("id", link.id);
+    const { error } = await supabase.from("share_links").update({ is_active: !link.is_active }).eq("id", link.id);
+    if (error) {
+      setItems((prev) => prev.map((x) => (x.id === link.id ? { ...x, is_active: link.is_active } : x)));
+      alert("Erreur : " + error.message);
+      return;
+    }
     router.refresh();
   }
 
@@ -47,7 +56,12 @@ export default function ShareLinksManager({
     if (!confirm(`Supprimer le lien « ${link.label} » ? Il ne fonctionnera plus.`)) return;
     const supabase = createClient();
     setItems((prev) => prev.filter((x) => x.id !== link.id));
-    await supabase.from("share_links").delete().eq("id", link.id);
+    const { error } = await supabase.from("share_links").delete().eq("id", link.id);
+    if (error) {
+      setItems((prev) => [...prev, link]);
+      alert("Erreur : " + error.message);
+      return;
+    }
     router.refresh();
   }
 
