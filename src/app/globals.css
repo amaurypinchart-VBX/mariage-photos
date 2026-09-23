@@ -180,7 +180,11 @@ body {
   }
 }
 .gb-page-in {
-  animation: gb-page-in 0.32s ease both;
+  /* Pas de "both" : le transform doit redevenir "none" une fois l'entrée
+     terminée, sinon il crée un containing block pour les descendants en
+     position fixed (ex. la modale "choisir dans la galerie") et les piège,
+     rétrécis, dans la page au lieu de couvrir tout l'écran. */
+  animation: gb-page-in 0.32s ease;
 }
 
 @keyframes gb-book-open {
@@ -194,7 +198,8 @@ body {
   }
 }
 .gb-book-open {
-  animation: gb-book-open 0.35s ease both;
+  /* Même raison que .gb-page-in ci-dessus : pas de "both". */
+  animation: gb-book-open 0.35s ease;
 }
 
 @keyframes gb-tap-hint {
