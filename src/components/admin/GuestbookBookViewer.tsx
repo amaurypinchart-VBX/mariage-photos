@@ -1,37 +1,178 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import imageCompression from "browser-image-compression";
+import { useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { GuestPage } from "@/lib/guestbookAdmin";
-import type { GuestbookCoverData } from "@/lib/guestbookAdmin";
+import type { GuestPage, GuestbookCoverData } from "@/lib/guestbookAdmin";
+import GuestbookBookShell, { type BookSpread } from "@/components/guestbook/GuestbookBookShell";
 import StaticStickers from "@/components/guestbook/StaticStickers";
+import StickerCanvas from "@/components/guestbook/StickerCanvas";
+import StickerPalette from "@/components/guestbook/StickerPalette";
+import type { StickerPlacement } from "@/lib/types";
+
+const BUCKET = "guestbook-media";
+
+function uid() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
-const paperStyle: React.CSSProperties = {
-  background: "repeating-linear-gradient(#fdfaf1, #fdfaf1 33px, rgba(79,97,82,.08) 34px)",
-};
+export type CoverPhoto = { id: string; url: string };
+export type WeddingPhoto = { id: string; storagePath: string; url: string };
 
+// Le livre d'or admin — un seul objet "livre" qu'on feuillette et qu'on édite
+// directement sur la page (couverture) comme si on le tenait en main, au lieu
+// d'un formulaire séparé au-dessus d'un aperçu en lecture seule.
 export default function GuestbookBookViewer({
+  eventId,
   coupleNames,
   cover,
   pages,
+  weddingPhotos,
 }: {
+  eventId: string;
   coupleNames: string;
   cover: GuestbookCoverData;
   pages: GuestPage[];
+  weddingPhotos: WeddingPhoto[];
 }) {
+  // ---- Couverture : édition directe (titre, mot, stickers, photos) ----
+  const [title, setTitle] = useState(cover.title ?? "");
+  const [message, setMessage] = useState(cover.message ?? "");
+  const [stickers, setStickers] = useState<StickerPlacement[]>(cover.stickers);
+  const [photos, setPhotos] = useState<CoverPhoto[]>(cover.photos);
+  const [savingCover, setSavingCover] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipFirstSave = useRef(true);
+
+  function scheduleSave(nextTitle: string, nextMessage: string, nextStickers: StickerPlacement[]) {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      setSavingCover(true);
+      const supabase = createClient();
+      await supabase
+        .from("events")
+        .update({
+          guestbook_cover_title: nextTitle || null,
+          guestbook_cover_message: nextMessage || null,
+          guestbook_cover_stickers: nextStickers,
+        })
+        .eq("id", eventId);
+      setSavingCover(false);
+    }, 800);
+  }
+
+  function updateTitle(v: string) {
+    setTitle(v);
+    scheduleSave(v, message, stickers);
+  }
+  function updateMessage(v: string) {
+    setMessage(v);
+    scheduleSave(title, v, stickers);
+  }
+  function updateStickers(next: StickerPlacement[]) {
+    setStickers(next);
+    scheduleSave(title, message, next);
+  }
+  function addSticker(emoji: string) {
+    updateStickers([...stickers, { id: uid(), emoji, xPct: 50, yPct: 50, scale: 1, rotationDeg: 0 }]);
+  }
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setPhotoError(null);
+    const supabase = createClient();
+    for (const file of Array.from(files)) {
+      try {
+        let blob: Blob = file;
+        let mimeType = file.type || "image/jpeg";
+        if (file.type !== "image/gif") {
+          try {
+            blob = await imageCompression(file, { maxSizeMB: 3, maxWidthOrHeight: 2560, useWebWorker: true });
+            mimeType = "image/jpeg";
+          } catch {
+            blob = file;
+          }
+        }
+        const path = `${eventId}/cover/${uid()}.jpg`;
+        const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, blob, {
+          contentType: mimeType,
+          upsert: false,
+          cacheControl: "3600",
+        });
+        if (upErr) throw upErr;
+
+        const { data: created, error: insErr } = await supabase
+          .from("guestbook_cover_photos")
+          .insert({
+            event_id: eventId,
+            bucket: BUCKET,
+            storage_path: path,
+            mime_type: mimeType,
+            size_bytes: blob.size,
+            sort_order: photos.length,
+          })
+          .select("id")
+          .single();
+        if (insErr || !created) throw insErr;
+
+        const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 2);
+        if (signed?.signedUrl) {
+          setPhotos((prev) => [...prev, { id: (created as { id: string }).id, url: signed.signedUrl }]);
+        }
+      } catch (e) {
+        setPhotoError(e instanceof Error ? e.message : "Erreur d'envoi.");
+      }
+    }
+    setUploading(false);
+  }
+
+  async function pickFromWedding(photo: WeddingPhoto) {
+    setPhotoError(null);
+    const supabase = createClient();
+    const { data: created, error: insErr } = await supabase
+      .from("guestbook_cover_photos")
+      .insert({
+        event_id: eventId,
+        bucket: "wedding-media",
+        storage_path: photo.storagePath,
+        sort_order: photos.length,
+      })
+      .select("id")
+      .single();
+    if (insErr || !created) {
+      setPhotoError(insErr?.message ?? "Erreur.");
+      return;
+    }
+    setPhotos((prev) => [...prev, { id: (created as { id: string }).id, url: photo.url }]);
+    setPickerOpen(false);
+  }
+
+  async function removePhoto(id: string) {
+    setPhotos((prev) => prev.filter((p) => p.id !== id));
+    const supabase = createClient();
+    await supabase.from("guestbook_cover_photos").delete().eq("id", id);
+  }
+
+  // ---- Pages des invités : lecture + suppression ----
   const [localPages, setLocalPages] = useState(pages);
   const [deleting, setDeleting] = useState<string | null>(null);
   const sorted = useMemo(
     () => [...localPages].sort((a, b) => a.guest.name.localeCompare(b.guest.name, "fr")),
     [localPages]
   );
-  const hasCover = !!(cover.title || cover.message || cover.stickers.length > 0 || cover.photos.length > 0);
-  const count = (hasCover ? 1 : 0) + sorted.length;
-  const [index, setIndex] = useState(0);
 
   async function removeGuest(guestId: string) {
     if (!confirm("Supprimer définitivement cette page (et ses médias) ?")) return;
@@ -44,206 +185,227 @@ export default function GuestbookBookViewer({
       return;
     }
     setLocalPages((prev) => prev.filter((p) => p.guest.id !== guestId));
-    setIndex((i) => Math.max(0, i - 1));
   }
 
-  if (count === 0) {
-    return (
-      <div className="card p-8 text-center">
-        <div
-          className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full text-[24px]"
-          style={{ background: "var(--sage-tint)", color: "var(--sage)" }}
-        >
-          💌
+  const [pageIndex, setPageIndex] = useState(0);
+
+  const coverSpread: BookSpread = {
+    key: "cover",
+    left: (
+      <div className="relative h-full">
+        <div className="eyebrow" style={{ color: "var(--sage)" }}>
+          Couverture
         </div>
-        <p className="font-semibold">Le livre d&apos;or est encore vide</p>
-        <p className="mt-1 text-[13px]" style={{ color: "var(--ink-soft)" }}>
-          Ajoute une couverture ci-dessus, et les pages de vos invités apparaîtront ici au fur et à mesure.
-        </p>
+        <input
+          value={title}
+          onChange={(e) => updateTitle(e.target.value)}
+          placeholder={coupleNames}
+          className="display relative mt-1 w-full bg-transparent text-[22px] outline-none"
+          style={{ border: "none", color: "var(--ink)" }}
+        />
+        <textarea
+          value={message}
+          onChange={(e) => updateMessage(e.target.value)}
+          placeholder="Petit mot d'introduction pour vos invités…"
+          className="relative mt-3 w-full resize-none bg-transparent outline-none"
+          style={{ fontFamily: "var(--font-hand)", fontSize: "24px", lineHeight: 1.3, color: "var(--ink)", minHeight: 110 }}
+        />
+        <StickerCanvas stickers={stickers} onChange={updateStickers} />
       </div>
-    );
-  }
+    ),
+    right: (
+      <div>
+        <div className="eyebrow" style={{ color: "var(--champ)" }}>
+          En photos
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2.5">
+          {photos.map((p) => (
+            <div
+              key={p.id}
+              className="relative overflow-hidden rounded-[10px] border shadow-soft"
+              style={{ aspectRatio: "1", borderColor: "rgba(79,97,82,.18)", background: "var(--surface-2)" }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.url} alt="" className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => removePhoto(p.id)}
+                className="absolute right-1 top-1 grid h-[20px] w-[20px] place-items-center rounded-full text-[11px] text-white"
+                style={{ background: "rgba(0,0,0,.55)", cursor: "pointer" }}
+                aria-label="Retirer"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="grid place-items-center rounded-[10px] border border-dashed text-[22px]"
+            style={{ aspectRatio: "1", borderColor: "var(--line-strong)", color: "var(--ink-faint)", cursor: "pointer" }}
+            aria-label="Ajouter une photo de couverture"
+          >
+            {uploading ? "…" : "+"}
+          </button>
+        </div>
+        {weddingPhotos.length > 0 && (
+          <button
+            type="button"
+            className="chip mt-3"
+            style={{ cursor: "pointer" }}
+            onClick={() => setPickerOpen(true)}
+          >
+            📷 Depuis la galerie du mariage
+          </button>
+        )}
+        {photoError && (
+          <p className="mt-2 text-[12.5px]" style={{ color: "#c0522d" }}>
+            {photoError}
+          </p>
+        )}
+      </div>
+    ),
+  };
 
-  const safeIndex = Math.min(index, count - 1);
-  const goPrev = () => setIndex((i) => (Math.min(i, count - 1) - 1 + count) % count);
-  const goNext = () => setIndex((i) => (Math.min(i, count - 1) + 1) % count);
+  const guestSpreads: BookSpread[] = sorted.map((p) => ({
+    key: p.guest.id,
+    left: (
+      <>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="eyebrow" style={{ color: "var(--sage)" }}>
+              {formatDate(p.entry.updated_at)}
+            </div>
+            <div className="display mt-1 text-[22px]">{p.guest.name}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => removeGuest(p.guest.id)}
+            disabled={deleting === p.guest.id}
+            className="flex-none text-[12px] font-semibold"
+            style={{ color: "#c0522d", cursor: "pointer" }}
+          >
+            {deleting === p.guest.id ? "…" : "Supprimer"}
+          </button>
+        </div>
 
-  const isCoverPage = hasCover && safeIndex === 0;
-  const guestPage = !isCoverPage ? sorted[safeIndex - (hasCover ? 1 : 0)] : null;
+        <div className="relative mt-4" style={{ minHeight: 160 }}>
+          {p.entry.message ? (
+            <p
+              className="whitespace-pre-wrap"
+              style={{ fontFamily: "var(--font-hand)", fontSize: "27px", lineHeight: 1.3, color: "var(--ink)" }}
+            >
+              {p.entry.message}
+            </p>
+          ) : (
+            <p className="italic" style={{ fontFamily: "var(--font-hand)", fontSize: "22px", color: "var(--ink-faint)" }}>
+              Cette page n&apos;a pas encore été écrite…
+            </p>
+          )}
+          <StaticStickers stickers={p.entry.stickers} />
+        </div>
+      </>
+    ),
+    right: (
+      <div>
+        <div className="eyebrow" style={{ color: "var(--champ)" }}>
+          Souvenirs joints
+        </div>
+        {p.media.length > 0 ? (
+          <div className="mt-3 grid grid-cols-2 gap-2.5">
+            {p.media.map((m) => (
+              <div
+                key={m.id}
+                className="overflow-hidden rounded-[10px] border shadow-soft"
+                style={{ aspectRatio: "1", borderColor: "rgba(79,97,82,.18)", background: "var(--surface-2)" }}
+              >
+                {m.kind === "image" && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={m.url} alt="" className="h-full w-full object-cover" />
+                )}
+                {m.kind === "video" && <video src={m.url} controls playsInline className="h-full w-full object-cover" />}
+                {m.kind === "audio" && (
+                  <div className="flex h-full items-center justify-center p-1">
+                    <audio src={m.url} controls className="w-full" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-[13.5px] italic" style={{ color: "var(--ink-faint)" }}>
+            Aucune photo, vidéo ou message vocal joint.
+          </p>
+        )}
+      </div>
+    ),
+  }));
+
+  const spreads: BookSpread[] = [coverSpread, ...guestSpreads];
 
   return (
     <div>
-      <div className="mx-auto flex max-w-[720px] items-center gap-2 sm:gap-4">
-        <button
-          type="button"
-          onClick={goPrev}
-          className="grid h-11 w-11 flex-none place-items-center rounded-full text-[20px]"
-          style={{ background: "var(--surface-2)", border: "1px solid var(--line)", cursor: "pointer" }}
-          aria-label="Page précédente"
-        >
-          ‹
-        </button>
+      <GuestbookBookShell
+        coverTitle={title || coupleNames}
+        coverEyebrow="Livre d'or"
+        spreads={spreads}
+        startOpen
+        showCloseButton
+        index={pageIndex}
+        onIndexChange={setPageIndex}
+      />
 
-        {/* Reliure / couverture du livre */}
+      {pageIndex === 0 && (
+        <>
+          <StickerPalette onPick={addSticker} />
+          <p className="mt-2 text-[12px]" style={{ color: "var(--ink-faint)" }}>
+            {savingCover ? "Enregistrement…" : "Titre, mot, stickers et photos se modifient directement sur la page."}
+          </p>
+        </>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="sr-only absolute h-px w-px overflow-hidden"
+        onChange={(e) => {
+          handleFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+
+      {pickerOpen && (
         <div
-          className="min-w-0 flex-1 rounded-[22px] p-2.5 sm:p-3.5"
-          style={{
-            background: "linear-gradient(155deg, var(--sage-strong), var(--sage))",
-            boxShadow: "0 18px 40px -18px rgba(20,28,20,.55), 0 2px 0 rgba(255,255,255,.08) inset",
-          }}
+          className="fixed inset-0 z-40 flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,.6)" }}
+          onClick={() => setPickerOpen(false)}
         >
           <div
-            className="relative grid grid-cols-1 overflow-hidden rounded-[14px] sm:grid-cols-2"
-            style={{ background: "#fdfaf1", minHeight: 320 }}
+            className="max-h-[70vh] w-full max-w-app overflow-y-auto rounded-t-[20px] p-4"
+            style={{ background: "var(--bg)" }}
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Ombre de la reliure au centre (visible en 2 colonnes) */}
-            <div
-              className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-10 -translate-x-1/2 sm:block"
-              style={{
-                background:
-                  "linear-gradient(90deg, rgba(0,0,0,.10), rgba(0,0,0,0) 20%, rgba(0,0,0,0) 80%, rgba(0,0,0,.10))",
-              }}
-            />
-
-            {isCoverPage ? (
-              <>
-                {/* Page de gauche : titre + mot d'intro de la couverture */}
-                <div
-                  className="relative flex flex-col justify-center border-b p-5 text-center sm:border-b-0 sm:border-r"
-                  style={{ ...paperStyle, borderColor: "rgba(79,97,82,.14)" }}
+            <h4 className="mb-3 text-[15px] font-semibold">Choisir dans la galerie du mariage</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {weddingPhotos.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => pickFromWedding(p)}
+                  className="overflow-hidden rounded-[10px] border"
+                  style={{ aspectRatio: "1", borderColor: "var(--line)" }}
                 >
-                  <div className="eyebrow" style={{ color: "var(--sage)" }}>
-                    Couverture
-                  </div>
-                  <h2 className="display mt-1 text-[24px]">{cover.title || coupleNames}</h2>
-                  {cover.message && (
-                    <p className="mt-3" style={{ fontFamily: "var(--font-hand)", fontSize: "24px", color: "var(--ink)" }}>
-                      {cover.message}
-                    </p>
-                  )}
-                  <StaticStickers stickers={cover.stickers} />
-                </div>
-
-                {/* Page de droite : photos de couverture */}
-                <div className="relative p-5" style={paperStyle}>
-                  <div className="eyebrow" style={{ color: "var(--champ)" }}>
-                    En photos
-                  </div>
-                  {cover.photos.length > 0 ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2.5">
-                      {cover.photos.map((p) => (
-                        <div
-                          key={p.id}
-                          className="overflow-hidden rounded-[10px] border shadow-soft"
-                          style={{ aspectRatio: "1", borderColor: "rgba(79,97,82,.18)", background: "var(--surface-2)" }}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={p.url} alt="" className="h-full w-full object-cover" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-[13.5px] italic" style={{ color: "var(--ink-faint)" }}>
-                      Aucune photo de couverture pour l&apos;instant.
-                    </p>
-                  )}
-                </div>
-              </>
-            ) : guestPage ? (
-              <>
-                {/* Page de gauche : le mot de l'invité */}
-                <div
-                  className="relative border-b p-5 sm:border-b-0 sm:border-r"
-                  style={{ ...paperStyle, borderColor: "rgba(79,97,82,.14)" }}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="eyebrow" style={{ color: "var(--sage)" }}>
-                        {formatDate(guestPage.entry.updated_at)}
-                      </div>
-                      <div className="display mt-1 text-[22px]">{guestPage.guest.name}</div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeGuest(guestPage.guest.id)}
-                      disabled={deleting === guestPage.guest.id}
-                      className="flex-none text-[12px] font-semibold"
-                      style={{ color: "#c0522d", cursor: "pointer" }}
-                    >
-                      {deleting === guestPage.guest.id ? "…" : "Supprimer"}
-                    </button>
-                  </div>
-
-                  <div className="relative mt-4" style={{ minHeight: 160 }}>
-                    {guestPage.entry.message ? (
-                      <p
-                        className="whitespace-pre-wrap"
-                        style={{ fontFamily: "var(--font-hand)", fontSize: "27px", lineHeight: 1.3, color: "var(--ink)" }}
-                      >
-                        {guestPage.entry.message}
-                      </p>
-                    ) : (
-                      <p className="italic" style={{ fontFamily: "var(--font-hand)", fontSize: "22px", color: "var(--ink-faint)" }}>
-                        Cette page n&apos;a pas encore été écrite…
-                      </p>
-                    )}
-                    <StaticStickers stickers={guestPage.entry.stickers} />
-                  </div>
-                </div>
-
-                {/* Page de droite : les souvenirs joints */}
-                <div className="relative p-5" style={paperStyle}>
-                  <div className="eyebrow" style={{ color: "var(--champ)" }}>
-                    Souvenirs joints
-                  </div>
-                  {guestPage.media.length > 0 ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2.5">
-                      {guestPage.media.map((m) => (
-                        <div
-                          key={m.id}
-                          className="overflow-hidden rounded-[10px] border shadow-soft"
-                          style={{ aspectRatio: "1", borderColor: "rgba(79,97,82,.18)", background: "var(--surface-2)" }}
-                        >
-                          {m.kind === "image" && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={m.url} alt="" className="h-full w-full object-cover" />
-                          )}
-                          {m.kind === "video" && (
-                            <video src={m.url} controls playsInline className="h-full w-full object-cover" />
-                          )}
-                          {m.kind === "audio" && (
-                            <div className="flex h-full items-center justify-center p-1">
-                              <audio src={m.url} controls className="w-full" />
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-[13.5px] italic" style={{ color: "var(--ink-faint)" }}>
-                      Aucune photo, vidéo ou message vocal joint.
-                    </p>
-                  )}
-                </div>
-              </>
-            ) : null}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.url} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={goNext}
-          className="grid h-11 w-11 flex-none place-items-center rounded-full text-[20px]"
-          style={{ background: "var(--surface-2)", border: "1px solid var(--line)", cursor: "pointer" }}
-          aria-label="Page suivante"
-        >
-          ›
-        </button>
-      </div>
-
-      <div className="mt-3 text-center text-[12px]" style={{ color: "var(--ink-faint)" }}>
-        — Page {safeIndex + 1} sur {count} —
-      </div>
+      )}
     </div>
   );
 }

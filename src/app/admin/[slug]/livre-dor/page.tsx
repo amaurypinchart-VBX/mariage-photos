@@ -29,10 +29,33 @@ export default async function AdminGuestbookPage({
   if (!eventData) notFound();
   const event = eventData as WeddingEvent;
 
-  const [pages, cover] = await Promise.all([
+  const [pages, cover, { data: uploadsData }] = await Promise.all([
     getGuestbookPages(supabase, event.id),
     getGuestbookCover(supabase, event),
+    supabase
+      .from("guest_uploads")
+      .select("id, storage_path, kind")
+      .eq("event_id", event.id)
+      .eq("kind", "image")
+      .order("created_at", { ascending: false }),
   ]);
+
+  const uploads = (uploadsData as { id: string; storage_path: string }[]) ?? [];
+  const urlByPath: Record<string, string> = {};
+  if (uploads.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from("wedding-media")
+      .createSignedUrls(
+        uploads.map((u) => u.storage_path),
+        60 * 60 * 2
+      );
+    (signed ?? []).forEach((s) => {
+      if (s.signedUrl && s.path) urlByPath[s.path] = s.signedUrl;
+    });
+  }
+  const weddingPhotos = uploads
+    .filter((u) => urlByPath[u.storage_path])
+    .map((u) => ({ id: u.id, storagePath: u.storage_path, url: urlByPath[u.storage_path] }));
 
   return (
     <div>
@@ -47,7 +70,13 @@ export default async function AdminGuestbookPage({
       <h1 className="display text-[30px] leading-tight">{event.couple_names}</h1>
 
       <div className="mt-6">
-        <GuestbookBookViewer coupleNames={event.couple_names} cover={cover} pages={pages} />
+        <GuestbookBookViewer
+          eventId={event.id}
+          coupleNames={event.couple_names}
+          cover={cover}
+          pages={pages}
+          weddingPhotos={weddingPhotos}
+        />
       </div>
     </div>
   );

@@ -12,7 +12,6 @@ import AdminGallery from "@/components/admin/AdminGallery";
 import ChallengesManager from "@/components/admin/ChallengesManager";
 import ShareLinksManager from "@/components/admin/ShareLinksManager";
 import GuestbookToggle from "@/components/admin/GuestbookToggle";
-import GuestbookCoverEditor from "@/components/admin/GuestbookCoverEditor";
 import GuestbookBookViewer from "@/components/admin/GuestbookBookViewer";
 import DestinationPollManager from "@/components/admin/DestinationPollManager";
 
@@ -167,18 +166,13 @@ export default async function AdminEventPage({
       </p>
       <GuestbookToggle eventId={event.id} initial={event.guestbook_active} />
       <div className="mt-4">
-        <GuestbookCoverEditor
+        <GuestbookBookViewer
           eventId={event.id}
           coupleNames={event.couple_names}
-          initialTitle={cover.title}
-          initialMessage={cover.message}
-          initialStickers={cover.stickers}
-          initialPhotos={cover.photos}
+          cover={cover}
+          pages={guestPages}
           weddingPhotos={weddingPhotos}
         />
-      </div>
-      <div className="mt-6">
-        <GuestbookBookViewer coupleNames={event.couple_names} cover={cover} pages={guestPages} />
       </div>
 
       {/* Vote destination */}
