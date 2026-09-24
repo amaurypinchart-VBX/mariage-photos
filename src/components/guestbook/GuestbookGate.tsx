@@ -6,9 +6,15 @@ import { loginOrRegisterGuest } from "@/app/e/[slug]/livre-dor/actions";
 export default function GuestbookGate({
   slug,
   onLoggedIn,
+  intro,
+  submitLabel,
 }: {
   slug: string;
   onLoggedIn: (guestId: string) => void;
+  /** Personnalise le texte d'intro (par défaut : celui du livre d'or). */
+  intro?: string;
+  /** Personnalise le libellé du bouton (par défaut : celui du livre d'or). */
+  submitLabel?: React.ReactNode;
 }) {
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
@@ -41,8 +47,8 @@ export default function GuestbookGate({
   return (
     <form onSubmit={submit} className="mt-[18px]">
       <p className="text-[14px]" style={{ color: "var(--ink-soft)" }}>
-        Écris ton prénom et choisis un code à 4 chiffres pour retrouver ta page
-        plus tard, depuis n&apos;importe quel appareil.
+        {intro ??
+          "Écris ton prénom et choisis un code à 4 chiffres pour retrouver ta page plus tard, depuis n'importe quel appareil."}
       </p>
 
       <div className="mt-[18px]">
@@ -88,7 +94,7 @@ export default function GuestbookGate({
       )}
 
       <button className="btn btn-primary mt-[18px] w-full" disabled={loading}>
-        {loading ? "Un instant…" : <><span className="text-[18px]">💌</span> Ouvrir ma page</>}
+        {loading ? "Un instant…" : submitLabel ?? <><span className="text-[18px]">💌</span> Ouvrir ma page</>}
       </button>
     </form>
   );

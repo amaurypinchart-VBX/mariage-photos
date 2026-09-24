@@ -99,6 +99,22 @@ export default async function AlbumPage({
           </Link>
         )}
 
+        {event.guestbook_active && (
+          <Link
+            href={`/e/${event.slug}/destination`}
+            className="card mb-4 flex items-center gap-3 p-4"
+            style={{ background: "var(--champ-tint)" }}
+          >
+            <span className="text-[22px]">✈️</span>
+            <span>
+              <span className="block text-[14.5px] font-semibold">Voter pour la lune de miel</span>
+              <span className="block text-[12.5px]" style={{ color: "var(--ink-soft)" }}>
+                Propose une destination ou vote pour celle des autres.
+              </span>
+            </span>
+          </Link>
+        )}
+
         <GuestAlbum items={items} />
       </div>
     </>
