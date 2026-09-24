@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/client";
 import type { ShareLink } from "@/lib/types";
 
@@ -21,10 +22,35 @@ export default function ShareLinksManager({
   const [label, setLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [qrLink, setQrLink] = useState<ShareLink | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState("");
 
   function urlFor(link: ShareLink) {
     return `${siteUrl}/e/${slug}/album/${link.token}`;
   }
+
+  useEffect(() => {
+    if (!qrLink) {
+      setQrDataUrl("");
+      return;
+    }
+    let cancelled = false;
+    QRCode.toDataURL(urlFor(qrLink), {
+      width: 640,
+      margin: 1,
+      color: { dark: "#232b25", light: "#ffffff" },
+    })
+      .then((d) => {
+        if (!cancelled) setQrDataUrl(d);
+      })
+      .catch(() => {
+        if (!cancelled) setQrDataUrl("");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrLink]);
 
   async function copy(link: ShareLink) {
     try {
@@ -110,6 +136,9 @@ export default function ShareLinksManager({
                 <button onClick={() => copy(link)} className="chip" style={{ cursor: "pointer" }}>
                   {copiedId === link.id ? "✓ Copié" : "🔗 Copier"}
                 </button>
+                <button onClick={() => setQrLink(link)} className="chip" style={{ cursor: "pointer" }}>
+                  ▦ QR code
+                </button>
                 <button
                   onClick={() => toggleActive(link)}
                   className="rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
@@ -141,6 +170,55 @@ export default function ShareLinksManager({
           Créer le lien
         </button>
       </form>
+
+      {qrLink && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center sm:items-center"
+          style={{ background: "rgba(0,0,0,.6)" }}
+          onClick={() => setQrLink(null)}
+        >
+          <div
+            className="w-full max-w-app rounded-t-[20px] p-6 text-center sm:rounded-[20px]"
+            style={{ background: "var(--bg)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 className="text-[15px] font-semibold">{qrLink.label}</h4>
+            <p className="mt-1 truncate text-[12px]" style={{ color: "var(--ink-faint)" }}>
+              {urlFor(qrLink)}
+            </p>
+            <div className="mt-4 flex justify-center">
+              {qrDataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={qrDataUrl}
+                  alt={`QR code — ${qrLink.label}`}
+                  className="h-[220px] w-[220px] rounded-[12px] bg-white p-2"
+                />
+              ) : (
+                <div className="h-[220px] w-[220px] rounded-[12px]" style={{ background: "var(--surface)" }} />
+              )}
+            </div>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {qrDataUrl && (
+                <a
+                  href={qrDataUrl}
+                  download={`qr-${qrLink.label.replace(/\s+/g, "-").toLowerCase()}.png`}
+                  className="chip"
+                  style={{ cursor: "pointer" }}
+                >
+                  ⬇ Télécharger
+                </a>
+              )}
+              <button type="button" onClick={() => copy(qrLink)} className="chip" style={{ cursor: "pointer" }}>
+                {copiedId === qrLink.id ? "✓ Copié" : "🔗 Copier le lien"}
+              </button>
+              <button type="button" onClick={() => setQrLink(null)} className="chip" style={{ cursor: "pointer" }}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
