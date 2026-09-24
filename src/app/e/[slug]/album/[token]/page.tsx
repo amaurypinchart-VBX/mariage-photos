@@ -22,13 +22,21 @@ export default async function AlbumPage({
 
   const admin = createAdminClient();
 
-  const { data: linkData } = await admin
+  const { data: linkData, error: linkError } = await admin
     .from("share_links")
     .select("id, event_id, label, token, is_active, created_at")
     .eq("event_id", event.id)
     .eq("token", params.token)
     .eq("is_active", true)
     .maybeSingle();
+  if (linkError) {
+    // Un lien correctement actif en base ne doit jamais atterrir sur la page
+    // "lien invalide" sans laisser de trace : ça sent la clé service_role mal
+    // configurée (RLS qui bloque au lieu d'être contournée) plutôt qu'un vrai
+    // lien inexistant. Voir les logs Vercel (Deployments > Functions) pour
+    // le message d'erreur exact si ce cas se déclenche.
+    console.error(`[album/${params.slug}/${params.token}] share_links lookup failed:`, linkError);
+  }
   const link = linkData as ShareLink | null;
   if (!link) notFound();
 
